@@ -13,13 +13,14 @@ def extract_4Ddata_from_nii(nii_file):
         print('Loading roi from: ' + nii_file)
         Img = nib.load(nii_file)
         data = Img.get_fdata()
+        original_affine = Img.affine
     except:
         sys.exit('Cannot open ' + nii_file | '\nExiting.')
     if len(data.shape) == 4:
         print(nii_file + ' is a 4D image\nExiting.')
     else:
         sys.exit('Data did not loaded successfully')
-    return data
+    return data, original_affine
 
 def extract_3Ddata_from_nii(nii_file):
     """
@@ -28,6 +29,7 @@ def extract_3Ddata_from_nii(nii_file):
     try:
         print('Loading roi from: ' + nii_file)
         roiImg = nib.load(nii_file)
+        original_affine = roiImg.affine
         data = roiImg.get_fdata()
     except:
         sys.exit('Cannot open ' + nii_file | '\nExiting.')
@@ -35,7 +37,7 @@ def extract_3Ddata_from_nii(nii_file):
         print(nii_file + ' is a 3D image\nExiting.')
     else:
         sys.exit('Data did not loaded successfully')
-    return data
+    return data, original_affine
 
 
 def pca(X):
