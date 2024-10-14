@@ -110,7 +110,11 @@ def compute_gradient_map(sim_matrix,
     Args:
         sim_matrix (np.array): Computed from the similarity matrix
         spatial_position (tuple): Given by the function compute_similarity_matrix_in_ROI
+<<<<<<< HEAD
         roi_data_shape (3D np.array): Shape of the ROI data
+=======
+        roi_data_shape (np.array 3D): Shape of the ROI data
+>>>>>>> d747459086a4ab1f7fd149bd122083fca6fd7f00
 
     Returns:
         np.ndarray: Gradient magnitude map
