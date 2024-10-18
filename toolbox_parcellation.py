@@ -10,7 +10,7 @@ def extract_4Ddata_from_nii(nii_file):
     Extract data from nii file
     """
     try:
-        print('Loading roi from: ' + nii_file)
+        print('Loading fmri from: ' + nii_file)
         Img = nib.load(nii_file)
         data = Img.get_fdata()
         original_affine = Img.affine
@@ -82,3 +82,14 @@ def eta2(X):
     S -= np.eye(S.shape[0])
     
     return S
+
+
+
+#%% This part is used to download data from the HCP
+
+def download_hcp_data(subject: str='100206',
+                      out_dir: str='./hcp_data') -> None:
+    from hcp_utils import fetch_hcp
+    fetch_hcp(subject=subject, data_type='rfMRI_REST1_LR', out_dir=out_dir)
+    fetch_hcp(subject=subject, data_type='T1w', out_dir=out_dir)
+    return None
