@@ -85,6 +85,43 @@ def eta2(X):
 
 
 
+#%%
+
+def create_boundary_maps(parcellation):
+    """This function creates the boundary maps from a parcellation data.
+    Args:
+        parcellation (3D np.array): 3D numpy array representing the parcellation data
+        The values are integers representing the different parcels.
+    Returns:
+        3D np.array: 3D numpy array representing the boundary map.
+    """ 
+    #Initialize the boundary map with zeros
+    boundary_map = np.zeros_like(parcellation, dtype=int)
+    
+    # Get the shape of the parcellation
+    x_dim, y_dim, z_dim = parcellation.shape
+    
+    # Iterate through each voxel in the 3D array (excluding the edges to avoid out-of-bounds access)
+    for x in range(1, x_dim - 1):
+        for y in range(1, y_dim - 1):
+            for z in range(1, z_dim - 1):
+                # Current voxel value
+                current_value = parcellation[x, y, z]
+                
+                # Check the six neighbors (left, right, front, back, above, below)
+                neighbors = [
+                    parcellation[x - 1, y, z],  # left
+                    parcellation[x + 1, y, z],  # right
+                    parcellation[x, y - 1, z],  # front
+                    parcellation[x, y + 1, z],  # back
+                    parcellation[x, y, z - 1],  # below
+                    parcellation[x, y, z + 1]   # above
+                ]
+                
+                # If the current voxel value differs from any of its neighbors, it's a boundary
+                if any(current_value != neighbor for neighbor in neighbors):
+                    boundary_map[x, y, z] = 1
+    return boundary_map
 #%% This part is used to download data from the HCP
 
 def download_hcp_data(subject: str='100206',
@@ -93,3 +130,6 @@ def download_hcp_data(subject: str='100206',
     fetch_hcp(subject=subject, data_type='rfMRI_REST1_LR', out_dir=out_dir)
     fetch_hcp(subject=subject, data_type='T1w', out_dir=out_dir)
     return None
+
+
+

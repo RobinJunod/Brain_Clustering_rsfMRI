@@ -6,7 +6,6 @@ This algorithm needs a gradient magnitude map.
 @myspace 2024-2025 EPFL
 """
 
-
 import numpy as np
 import heapq
 from scipy import ndimage
@@ -53,8 +52,7 @@ def find_seeds(gradient_magnitude_map: np.ndarray) -> np.ndarray:
 
 # TODO : Implement the watershed algorithm BIG TODO (for now it doesn't work)
 
-def watershed_by_flooding(gradient_magnitude_map: np.ndarray, 
-                          seeds_maps: np.ndarray) -> np.ndarray:
+def watershed_by_flooding(gradient_magnitude_map: np.ndarray) -> np.ndarray:
 
     print('Search seeds for the watershed algorithm...')
     seeds_maps = find_seeds(gradient_magnitude_map)
