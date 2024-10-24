@@ -4,91 +4,10 @@ gradient magnitude map of a 3D image. The gradient magnitude map is a
 
 @myspace 2024-2025 EPFL
 """
-
-import sys
 import numpy as np
-from toolbox_parcellation import pca, corr, eta2
 
-
-
-def compute_similarity_matrix_in_ROI(fmri_data: np.ndarray,
-                                    roi_data: np.ndarray,
-                                    mask_data: np.ndarray,
-                                    save_simmatrix=True) -> np.ndarray:
     
-    """Compute the similarity matrix for fMRI data"""
-    
-	# Store the dimensions of the roi data and fmri data for later use
-    roidims = roi_data.shape
-    nVoxels = np.prod(roidims)
-    nFrames = fmri_data.shape[3]
-    
-    # Reshape roi into a vector of size nVoxels
-    mask_flatten = np.reshape(mask_data,(nVoxels))
-    # Check if roi inside of mask
-    roi_flatten = np.reshape(roi_data,(nVoxels))
-    # Reshape fmri data into a matrix of size nVoxels x n
-    fmri_flatten = np.reshape(fmri_data,(nVoxels,nFrames))
-    fmri_flatten = fmri_flatten.astype(np.float32)
-    
-    # Verfiy that the data is good
-    if (roi_flatten != roi_flatten * mask_flatten).any(): # Verify the ROI is inside the mask
-        sys.exit('ROI is not inside the mask. Exiting. (use roi_flatten = roi_flatten * mask_flatten)')
-    if (roi_flatten != roi_flatten * (np.var(fmri_flatten, axis=1) > 0)).any(): # Verify the ROI has positive variance
-        sys.exit('ROI contains voxels without variance. Exiting. (use roi_flatten = roi_flatten * (np.var(fmri_flatten, axis=1) > 0)')
-        
-    # Find the indices inside roi
-    roiIndices1D = np.where(roi_flatten > 0)
-    spatial_position = np.where(roi_data > 0)
-    # Find the indices outside roi but inside mask
-    maskIndices = np.where((roi_flatten==0) & (mask_flatten>0)) 
-
-    # Initialise similarity matrix
-    S = np.zeros([np.sum(roi_flatten>0),np.sum(roi_flatten>0)])
-    
-    # Normalise the data
-    fmri_normalized = (fmri_flatten - np.mean(fmri_flatten, axis=1, keepdims=True)) / np.std(fmri_flatten, axis=1, keepdims=True)
-    
-    # Gather data inside roi
-    A = fmri_normalized[roiIndices1D,:][0]
-    
-    # If the roi contains invalid data it must be due to a division by 0 (stdev)
-    # since the data themselves do not contain nans or infs. If so, we terminate 
-    # the program and the user should define a roi covering functional data.
-    # TODO : this part is now automatically taken care of by removing voxels
-    # with 0 variance in the roi with the preprocesing func.
-    if np.any(np.isnan(A)) or np.any(np.isinf(A)):
-        print('WARNING : ROI includes ',
-        np.isinf(np.var(A, axis=1)).sum() + np.isnan(np.var(A, axis=1)).sum(),
-        ' voxels without variance.\nExiting.')
-        
-    # Gather data outside roi
-    B = fmri_normalized[maskIndices,:][0]
-
-    # Transpose so that the data are stored in a time x space matrix
-    A = A.T
-    B = B.T
-
-    # A division by 0 (stdev) can also lead to nans and infs in the mask data.
-    # In this case we can simply throw a warning and ignore all voxels without
-    # variance.
-    keepB = ~np.isnan(B).any(axis=0) & ~np.isinf(B).any(axis=0)
-    if np.any(np.isnan(B)) or np.any(np.isinf(B)):
-        print('WARNING: Mask includes voxels without variance.')
-    # Delete data to free up memory
-    del fmri_normalized  
-    del fmri_flatten
-    
-    # Get voxel-wise connectivity fingerprints 
-    print('Computing voxel-wise connectivity fingerprints...')
-    [evecs,Bhat,evals] = pca(B[:,keepB])
-    # Compute the correlation matrix of the ROI data with the connectivity fingerprints
-    R = corr(A,Bhat)
-    print('Computing similarity matrix...')
-    S += eta2(R)
-    print('Done.')
-    return S, spatial_position
-
+# GRADIENT MAGNITUDE MAP
 
 def compute_gradient_map(sim_matrix,
                          spatial_position,
@@ -133,8 +52,8 @@ def compute_gradient_map(sim_matrix,
 def compute_gradient_map_gaussian(sim_matrix,
                                   spatial_position,
                                   roi_data_shape,
-                                  sigma=1.0,
-                                  radius=2) -> np.ndarray:
+                                  sigma=3.0,
+                                  radius=3) -> np.ndarray:
     """Compute the gradient map from a similarity matrix using a Gaussian-weighted neighborhood.
     The gradient map is a 3D map highlighting places with similar connectivity.
 
@@ -196,3 +115,4 @@ def blur_gradient_map(gradient_magnitude_map: np.ndarray,
     print('Applying Gaussian blur to the gradient magnitude map...')
     blurred_map = gaussian_filter(gradient_magnitude_map, sigma=sigma)
     return blurred_map
+

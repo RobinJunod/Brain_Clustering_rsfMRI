@@ -5,7 +5,7 @@ This algorithm needs a gradient magnitude map.
 
 @myspace 2024-2025 EPFL
 """
-
+#%%
 import numpy as np
 import heapq
 from scipy import ndimage
@@ -116,5 +116,23 @@ def watershed_by_flooding(gradient_magnitude_map: np.ndarray) -> np.ndarray:
                 if status[nx, ny, nz] == 0:
                     heapq.heappush(heap, (gradient_magnitude_map[nx, ny, nz], nx, ny, nz, labels[x, y, z]))
                     status[nx, ny, nz] = 1  # Mark as in queue
-
+    
+    # Remove wrong labels
+    labels = labels * mask
     return labels
+
+
+if __name__ == "__main__":
+    import os
+    import nibabel as nib
+    # Test the watershed by flooding algorithm from a gradient map
+    outdir_grad_map ='G:/HCP/outputs/grad_maps/'
+    file_name = "gradient_map_S01_20241021_163908.nii"
+    file_path = os.path.join(outdir_grad_map, file_name)
+    nii_img = nib.load(file_path)
+    gradient_magnitude_map = nii_img.get_fdata()
+    original_affine = nii_img.affine
+    #%%
+    labels_map = watershed_by_flooding(gradient_magnitude_map)
+    print(labels_map)  # Print the resulting labels
+    print(f"Number of regions: {np.max(labels_map)}")  # Print the number of regions
