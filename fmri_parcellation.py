@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii
 
-from gradient_magnitude_map import compute_gradient_map_gaussian
+from gradient_magnitude_map import custom_gradient_map_gaussian
 
 from similarity_matrix import fingerprint_simmatrix_in_ROI, \
                               simple_simmatrix_in_ROI
@@ -76,7 +76,7 @@ def compute_and_save_singlesub(subject_id: str,
     # 1 :: Compute the similarity matrix
     sim_matrix, spatial_position = simple_simmatrix_in_ROI(fmri_data, roi_data)
     # Save the similarity matrix
-    out_base_name = f'similarity_matrix_{subject_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
+    out_base_name = f'similarity_matrix_{subject_id}_{datetime.now().strftime("%Y%m%DS_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_sim_mtrx, exist_ok=True)
     # Prepare the dictionary to save both sim_matrix and spatial_position
@@ -94,9 +94,9 @@ def compute_and_save_singlesub(subject_id: str,
     
     
     # 2 :: Compute the gradient map
-    gradient_magnitude_map = compute_gradient_map_gaussian(sim_matrix, spatial_position, roi_data.shape)
+    gradient_magnitude_map = custom_gradient_map_gaussian(sim_matrix, spatial_position, roi_data.shape)
     # Save Results
-    out_base_name = f'gradient_map_{subject_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
+    out_base_name = f'gradient_map_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_grad_map, exist_ok=True)
     # Create a NIfTI image using nibabel
@@ -112,7 +112,7 @@ def compute_and_save_singlesub(subject_id: str,
     # 3 :: Perform watershed algorithm
     labels = watershed_by_flooding(gradient_magnitude_map)
     # Save the parcellation map
-    out_base_name = f'parcellation_map_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
+    out_base_name = f'parcellation_map_{datetime.now().strftime("%Y%m%D_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_parcel, exist_ok=True)
     nii_img = nib.Nifti1Image(labels, affine=original_affine)
@@ -141,10 +141,14 @@ if __name__ == '__main__':
     path_roi = 'G:/RSFC/ROI_data/ROI_postcentral.nii'
     path_mask = 'G:/RSFC/ROI_data/MASK_wholebrain.nii'
     
+    path_roi = r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\ROI_postcentral.nii'
+    path_mask =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\MASK_wholebrain.nii'
+    path_fmri =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\HCP\100307\MNINonLinear\Results\rfMRI_REST1_LR\rfMRI_REST1_LR_Atlas_hp2000_clean.dtseries.nii'
+    
     # Output file path
-    outdir_grad_map ='G:/HCP/outputs/grad_maps'
-    outdir_sim_mtrx = 'G:/HCP/outputs/sim_mtrx'
-    outdir_parcel = 'G:/HCP/outputs/parcels'
+    outdir_grad_map ='/outputs/grad_maps'
+    outdir_sim_mtrx = '/outputs/sim_mtrx'
+    outdir_parcel = '/outputs/parcels'
 
 #%%
     # Extract data and affine transformation matrix
@@ -155,6 +159,7 @@ if __name__ == '__main__':
                                 outdir_grad_map,
                                 outdir_sim_mtrx,
                                 outdir_parcel)
+
 
 
 

@@ -137,8 +137,9 @@ def simple_simmatrix_in_ROI(fmri_data: np.ndarray,
     return sim_mtrx, spatial_position
 
 
-def RSFC_singlevoxel():
-    pass
+
+
+
 
 #%%
 if __name__=='__main__':

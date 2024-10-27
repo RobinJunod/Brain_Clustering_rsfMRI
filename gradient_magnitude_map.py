@@ -4,12 +4,130 @@ gradient magnitude map of a 3D image. The gradient magnitude map is a
 
 @myspace 2024-2025 EPFL
 """
+
+#%%
 import numpy as np
 
-    
-# GRADIENT MAGNITUDE MAP
+from scipy.interpolate import griddata
+from scipy.ndimage import gaussian_filter, sobel
+import scipy.ndimage as ndi
 
-def compute_gradient_map(sim_matrix,
+
+def gaussian_blurring(volume_scalar : np.array,
+                      sigma : float = 2):
+    """Takes a 3D numpy array and apply a gaussian kernel to blur it
+
+    Args:
+        volume_scalar (np.array): 3D np.array of with each idx representing a 
+                                    discret postion of the voxel.
+        sigma (float): variance of the 3D gaussian used
+    """
+    # Apply Gaussian filter to blur the volume
+    blurred_volume = gaussian_filter(volume_scalar, sigma=sigma)
+    return blurred_volume
+
+
+def flat2volum(flatten_array : np.array, # 1xn
+               voxel_position : np.array,# 3xn
+               ):
+    """From an array of scalar values and a matrix of (integer) the postion of these scalar.
+    Reconstruct a 3D np.array with the positon of the voxel as index.
+
+    Args:
+        flatten_array (np.array): _description_
+        voxel_position (np.array): _description_
+    """
+    # Initialize the volume with zeros
+    max_indices = voxel_position.max(axis=1)
+    volume_shape = tuple(max_indices + 1)
+    volume = np.zeros(volume_shape)
+    # Extract voxel indices
+    x_indices, y_indices, z_indices = voxel_position
+    # Place scalar values at the corresponding positions
+    volume[x_indices, y_indices, z_indices] = flatten_array
+    return volume
+
+def gradient_magnitude(volume: np.array):
+    """An algorithm that computes the first spatial derivate. Which gives a gradient.
+    The magnitude of this gradient is computed for each voxels
+
+    Args:
+        volume (np.array): a 3D numpy array with each values representing a voxel
+
+    Returns:
+        np.array: gradient magnitude map
+    """
+    # Compute gradients along each axis
+    grad_x, grad_y, grad_z = np.gradient(volume)
+    
+    # Compute gradient magnitude at each voxel
+    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2 + grad_z**2)
+    
+    return gradient_magnitude
+
+
+def gradient_map_wig2014(sim_mtrx,
+                         spatial_position):
+    """Compute the average edge map from similarity maps.
+    
+    Args:
+        sim_mtrx (numpy.ndarray): n x n similarity matrix.
+        spatial_position (numpy.ndarray): 3 x n array of spatial positions.
+    
+    Returns:
+        numpy.ndarray: Averaged edge map.
+    """
+    # (1 subject) Each column of the sim_mtrx represent a similartiy map
+    # For each similarity map:
+    # apply gaussian blurring with sigma=2.55
+    # compute the gradient of each similarty map
+    # edge detection of the similarity grad map
+    # make average of each edge map
+
+    # Extract voxel indices (get a cube of the ROI)
+    x_indices = spatial_position[0]
+    y_indices = spatial_position[1]
+    z_indices = spatial_position[2]
+    # Determine the array size
+    x_min, x_max = x_indices.min(), x_indices.max()
+    y_min, y_max = y_indices.min(), y_indices.max()
+    z_min, z_max = z_indices.min(), z_indices.max()
+    size_x = x_max - x_min + 1
+    size_y = y_max - y_min + 1
+    size_z = z_max - z_min + 1
+    # Adjust indices to start from zero
+    x_adjusted = x_indices - x_min
+    y_adjusted = y_indices - y_min
+    z_adjusted = z_indices - z_min
+    
+    position_adjusted = np.array([x_adjusted, 
+                                  y_adjusted,
+                                  z_adjusted])
+    
+
+    
+    edge_maps = []
+    
+    # loop across each columns in sim matrix (coressponding to a sim map)
+    for sim_map_id in range(sim_mtrx.shape[0]):
+        # Your scalar values array of length n
+        sim_map_flat = sim_mtrx[:,sim_map_id] # Replace with your data
+        # Create sim map in 3d
+        sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
+        # Compute the gradient magnitude map
+        grad_map = gradient_magnitude(sim_map_3d)
+        # Blurring the sim map
+        grad_map_blur = gaussian_blurring(grad_map)
+        # Detect edges form sim_map
+        
+
+
+    return edge_maps
+    
+    
+    
+# GRADIENT MAGNITUDE MAP CUSTOM METHOD
+def custom_gradient_map(sim_matrix,
                          spatial_position,
                          roi_data_shape) -> np.ndarray:
     """Compute the gradient map from a similarity matrix using diffusion embedding.
@@ -49,7 +167,7 @@ def compute_gradient_map(sim_matrix,
             gradient_magnitude_map[x, y, z] = rmse / num_neighbours
     return gradient_magnitude_map 
 
-def compute_gradient_map_gaussian(sim_matrix,
+def custom_gradient_map_gaussian(sim_matrix,
                                   spatial_position,
                                   roi_data_shape,
                                   sigma=3.0,
@@ -116,3 +234,74 @@ def blur_gradient_map(gradient_magnitude_map: np.ndarray,
     blurred_map = gaussian_filter(gradient_magnitude_map, sigma=sigma)
     return blurred_map
 
+
+#%%
+if __name__=='__main__':
+    #The metric-gradient-all function in Caret 5.65 computes the magnitude of the gradient at each verte
+    # create test dataset 
+    # brain mask
+    # brain roi
+    # create 
+    from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii
+    path_roi = r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\ROI_postcentral.nii'
+    path_mask =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\MASK_wholebrain.nii'
+    path_fmri =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\HCP\rfMRI_REST1_LR.nii'
+    # extract data and affine transformation matrix
+    fmri_data, _ = extract_4Ddata_from_nii(path_fmri)
+    roi_data, original_affine = extract_3Ddata_from_nii(path_roi)
+    mask_data, _ = extract_3Ddata_from_nii(path_mask)
+    
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
+    """
+    Visualize slices of a 3D NumPy array.
+
+    Args:
+        volume (np.array): The 3D NumPy array to visualize.
+        axis (int): The axis along which to take slices (0 for x, 1 for y, 2 for z).
+        slice_indices (int or list of int, optional): Indices of the slices to visualize. 
+                                                      If None, the middle slice is displayed.
+        cmap (str): Colormap to use for displaying the slices.
+
+    """
+    if slice_indices is None:
+        # If no indices are provided, display the middle slice
+        idx = volume.shape[axis] // 2
+        slice_indices = [idx]
+    elif isinstance(slice_indices, int):
+        slice_indices = [slice_indices]
+    elif not isinstance(slice_indices, (list, tuple)):
+        raise TypeError("slice_indices must be an int, list, or None.")
+
+    num_slices = len(slice_indices)
+    fig, axes = plt.subplots(1, num_slices, figsize=(5 * num_slices, 5))
+    
+    # If only one subplot, put axes in a list for consistency
+    if num_slices == 1:
+        axes = [axes]
+    
+    for ax, idx in zip(axes, slice_indices):
+        if axis == 0:
+            # Slice along the x-axis
+            slice_img = volume[idx, :, :]
+            axis_name = 'X'
+        elif axis == 1:
+            # Slice along the y-axis
+            slice_img = volume[:, idx, :]
+            axis_name = 'Y'
+        elif axis == 2:
+            # Slice along the z-axis
+            slice_img = volume[:, :, idx]
+            axis_name = 'Z'
+        else:
+            raise ValueError("Axis must be 0 (x), 1 (y), or 2 (z).")
+        
+        ax.imshow(slice_img, cmap=cmap)
+        ax.set_title(f'Slice along {axis_name}-axis at index {idx}')
+        ax.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
