@@ -13,40 +13,6 @@ from scipy.ndimage import gaussian_filter, sobel
 import scipy.ndimage as ndi
 
 
-def gaussian_blurring(volume_scalar : np.array,
-                      sigma : float = 2):
-    """Takes a 3D numpy array and apply a gaussian kernel to blur it
-
-    Args:
-        volume_scalar (np.array): 3D np.array of with each idx representing a 
-                                    discret postion of the voxel.
-        sigma (float): variance of the 3D gaussian used
-    """
-    # Apply Gaussian filter to blur the volume
-    blurred_volume = gaussian_filter(volume_scalar, sigma=sigma)
-    return blurred_volume
-
-
-def flat2volum(flatten_array : np.array, # 1xn
-               voxel_position : np.array,# 3xn
-               ):
-    """From an array of scalar values and a matrix of (integer) the postion of these scalar.
-    Reconstruct a 3D np.array with the positon of the voxel as index.
-
-    Args:
-        flatten_array (np.array): _description_
-        voxel_position (np.array): _description_
-    """
-    # Initialize the volume with zeros
-    max_indices = voxel_position.max(axis=1)
-    volume_shape = tuple(max_indices + 1)
-    volume = np.zeros(volume_shape)
-    # Extract voxel indices
-    x_indices, y_indices, z_indices = voxel_position
-    # Place scalar values at the corresponding positions
-    volume[x_indices, y_indices, z_indices] = flatten_array
-    return volume
-
 def gradient_magnitude(volume: np.array):
     """An algorithm that computes the first spatial derivate. Which gives a gradient.
     The magnitude of this gradient is computed for each voxels
@@ -65,66 +31,6 @@ def gradient_magnitude(volume: np.array):
     
     return gradient_magnitude
 
-
-def gradient_map_wig2014(sim_mtrx,
-                         spatial_position):
-    """Compute the average edge map from similarity maps.
-    
-    Args:
-        sim_mtrx (numpy.ndarray): n x n similarity matrix.
-        spatial_position (numpy.ndarray): 3 x n array of spatial positions.
-    
-    Returns:
-        numpy.ndarray: Averaged edge map.
-    """
-    # (1 subject) Each column of the sim_mtrx represent a similartiy map
-    # For each similarity map:
-    # apply gaussian blurring with sigma=2.55
-    # compute the gradient of each similarty map
-    # edge detection of the similarity grad map
-    # make average of each edge map
-
-    # Extract voxel indices (get a cube of the ROI)
-    x_indices = spatial_position[0]
-    y_indices = spatial_position[1]
-    z_indices = spatial_position[2]
-    # Determine the array size
-    x_min, x_max = x_indices.min(), x_indices.max()
-    y_min, y_max = y_indices.min(), y_indices.max()
-    z_min, z_max = z_indices.min(), z_indices.max()
-    size_x = x_max - x_min + 1
-    size_y = y_max - y_min + 1
-    size_z = z_max - z_min + 1
-    # Adjust indices to start from zero
-    x_adjusted = x_indices - x_min
-    y_adjusted = y_indices - y_min
-    z_adjusted = z_indices - z_min
-    
-    position_adjusted = np.array([x_adjusted, 
-                                  y_adjusted,
-                                  z_adjusted])
-    
-
-    
-    edge_maps = []
-    
-    # loop across each columns in sim matrix (coressponding to a sim map)
-    for sim_map_id in range(sim_mtrx.shape[0]):
-        # Your scalar values array of length n
-        sim_map_flat = sim_mtrx[:,sim_map_id] # Replace with your data
-        # Create sim map in 3d
-        sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
-        # Compute the gradient magnitude map
-        grad_map = gradient_magnitude(sim_map_3d)
-        # Blurring the sim map
-        grad_map_blur = gaussian_blurring(grad_map)
-        # Detect edges form sim_map
-        
-
-
-    return edge_maps
-    
-    
     
 # GRADIENT MAGNITUDE MAP CUSTOM METHOD
 def custom_gradient_map(sim_matrix,
@@ -305,3 +211,278 @@ def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
     
     plt.tight_layout()
     plt.show()
+    
+    
+    
+#%% CREATE A CUSTOM 3D DATASET FOR TESTING
+import numpy as np
+
+def create_3d_test_data(function, shape= (50, 50, 50) , center=(25, 25, 25)  , radius= 15):
+    """
+    Creates a 3D array with a spherical ROI, where values inside the ROI are defined by a function
+    and outside the ROI are zero.
+
+    Parameters:
+    - shape (tuple): The shape of the 3D array, e.g., (size_x, size_y, size_z).
+    - center (tuple): The (x, y, z) coordinates for the center of the spherical ROI.
+    - radius (float): Radius of the spherical ROI.
+    - function (callable): Function to generate values inside the ROI, based on distance from center.
+
+    Returns:
+    - array (np.array): 3D array with values in a spherical ROI and zeros outside.
+    """
+    # Initialize a 3D array with zeros
+    array = np.zeros(shape, dtype=float)
+    
+    # Create a grid of indices
+    x = np.arange(shape[0])
+    y = np.arange(shape[1])
+    z = np.arange(shape[2])
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+    
+    # Calculate distances from the center
+    distances = np.sqrt((X - center[0])**2 + (Y - center[1])**2 + (Z - center[2])**2)
+    
+    # Define the spherical ROI based on the radius
+    roi_mask = distances <= radius
+    
+    # Apply the function within the ROI and set values outside ROI to zero
+    array[roi_mask] = function(distances[roi_mask])
+    
+    return array, roi_mask
+
+
+# Define a sinusoidal function for values inside the ROI
+def sinusoidal_function(distance, radius=15):
+    wavelength = radius / 4   # Adjust the wavelength to control oscillation frequency
+    return np.sin(2 * np.pi * distance / wavelength) + 10
+
+# Generate the 3D array with sinusoidal values inside the spherical ROI
+volume, roi_mask = create_3d_test_data(sinusoidal_function)
+
+
+
+
+#%% 
+# CREATE A 3D VOLUME FROM THE FLATTENED SIMILARITY MAP
+def flat2volum(flatten_array : np.array, # 1xn
+               voxel_position : np.array,# 3xn
+               ):
+    """From an array of scalar values and a matrix of (integer) the postion of these scalar.
+    Reconstruct a 3D np.array with the positon of the voxel as index.
+
+    Args:
+        flatten_array (np.array): _description_
+        voxel_position (np.array): _description_
+    """
+    # Initialize the volume with zeros
+    max_indices = voxel_position.max(axis=1)
+    volume_shape = tuple(max_indices + 1)
+    volume = np.zeros(volume_shape)
+    # Extract voxel indices
+    x_indices, y_indices, z_indices = voxel_position
+    # Place scalar values at the corresponding positions
+    volume[x_indices, y_indices, z_indices] = flatten_array
+    return volume
+
+# %%
+# COMPUTE THE SPATIAL MAGNITUDE GRADIENT INSIDE OF A ROI
+def compute_gradient_inside_ROI(volume, 
+                                roi_mask):
+    """
+    Compute the gradient magnitude within a specified ROI in a 3D volume.
+
+    Parameters:
+    - volume (np.ndarray): 3D array representing the volume.
+    - roi_mask (np.ndarray): 3D boolean array where True indicates the ROI.
+
+    Returns:
+    - gradient_magnitude (np.ndarray): 3D array of the same shape as volume containing the gradient magnitudes within the ROI.
+    """
+    from scipy.ndimage import sobel, distance_transform_edt
+    # Ensure roi_mask is boolean
+    roi_mask = roi_mask.astype(bool)
+    
+    # Step 1: Replace values outside the ROI with the nearest ROI value to avoid artificial gradients
+    # Compute the distance transform and obtain the indices of the nearest ROI voxel
+    distance, indices = distance_transform_edt(~roi_mask, return_indices=True)
+    padded_volume = volume[indices[0], indices[1], indices[2]]
+    
+    # Step 2: Compute gradients using the Sobel operator
+    gx = sobel(padded_volume, axis=0, mode='constant')
+    gy = sobel(padded_volume, axis=1, mode='constant')
+    gz = sobel(padded_volume, axis=2, mode='constant')
+    
+    # Step 3: Compute the gradient magnitude
+    gradient_magnitude = np.sqrt(gx**2 + gy**2 + gz**2)
+    
+    # Step 4: Mask the gradient magnitude to include only the ROI
+    gradient_magnitude = np.where(roi_mask, gradient_magnitude, 0)
+    
+    gx = np.where(roi_mask, gx, 0)
+    gy = np.where(roi_mask, gy, 0)
+    gz = np.where(roi_mask, gz, 0)
+    
+    return gradient_magnitude, (gx, gy, gz)
+# %%
+# APPLY GAUSSIAN BLURRING
+def gaussian_blurring(volume_scalar : np.array,
+                      sigma : float = 2):
+    """Takes a 3D numpy array and apply a gaussian kernel to blur it
+
+    Args:
+        volume_scalar (np.array): 3D np.array of with each idx representing a 
+                                    discret postion of the voxel.
+        sigma (float): variance of the 3D gaussian used
+    """
+    # Apply Gaussian filter to blur the volume
+    blurred_volume = gaussian_filter(volume_scalar, sigma=sigma)
+    return blurred_volume
+
+#%%
+# APPLY THE NON MAXIMA ALGORITHM FOR A BETTER EDGE DETECTION
+def non_maxima_suppression_3d(gradient_magnitude, gx, gy, gz, roi_mask):
+    """
+    Perform 3D Non-Maxima Suppression on the gradient magnitude within a ROI.
+
+    Parameters:
+    - gradient_magnitude (np.ndarray): 3D array of gradient magnitudes.
+    - gx, gy, gz (np.ndarray): 3D arrays of gradient components along x, y, z axes.
+    - roi_mask (np.ndarray): 3D boolean array where True indicates the ROI.
+
+    Returns:
+    - nms (np.ndarray): 3D array after non-maxima suppression.
+    """
+    from scipy.ndimage import map_coordinates
+    # Ensure inputs are float for precision
+    gradient_magnitude = gradient_magnitude.astype(np.float32)
+    gx = gx.astype(np.float32)
+    gy = gy.astype(np.float32)
+    gz = gz.astype(np.float32)
+    roi_mask = roi_mask.astype(bool)
+    
+    # Initialize the output array
+    nms = np.zeros_like(gradient_magnitude)
+    
+    # Get the indices of all voxels within the ROI
+    indices = np.array(np.nonzero(roi_mask)).T  # Shape: (num_voxels, 3)
+    
+    for idx in indices:
+        x, y, z = idx
+        # Get the gradient vector at this voxel
+        g_x = gx[x, y, z]
+        g_y = gy[x, y, z]
+        g_z = gz[x, y, z]
+        
+        # Normalize the gradient vector
+        norm = np.sqrt(g_x**2 + g_y**2 + g_z**2)
+        if norm == 0:
+            continue  # Cannot determine direction; skip
+        g_x /= norm
+        g_y /= norm
+        g_z /= norm
+        
+        # Determine the two neighboring voxel positions
+        neighbor1 = [x + g_x, y + g_y, z + g_z]
+        neighbor2 = [x - g_x, y - g_y, z - g_z]
+        
+        # Check boundaries
+        if (0 <= neighbor1[0] < gradient_magnitude.shape[0] - 1 and
+            0 <= neighbor1[1] < gradient_magnitude.shape[1] - 1 and
+            0 <= neighbor1[2] < gradient_magnitude.shape[2] - 1 and
+            0 <= neighbor2[0] < gradient_magnitude.shape[0] - 1 and
+            0 <= neighbor2[1] < gradient_magnitude.shape[1] - 1 and
+            0 <= neighbor2[2] < gradient_magnitude.shape[2] - 1):
+            
+            # Interpolate gradient magnitudes at the neighboring positions
+            gm1 = map_coordinates(gradient_magnitude, 
+                                  [[neighbor1[0]], [neighbor1[1]], [neighbor1[2]]], 
+                                  order=1, mode='nearest')[0]
+            gm2 = map_coordinates(gradient_magnitude, 
+                                  [[neighbor2[0]], [neighbor2[1]], [neighbor2[2]]], 
+                                  order=1, mode='nearest')[0]
+            
+            # Suppress if not a local maximum
+            if gradient_magnitude[x, y, z] >= gm1 and gradient_magnitude[x, y, z] >= gm2:
+                nms[x, y, z] = gradient_magnitude[x, y, z]
+    
+    return nms
+# %%
+def pipeline_wig2014(sim_mtrx,
+                     spatial_position,
+                     volumne_shape : tuple=(91,109,91)):
+    """This compute for a single subject the gradient magnitude map.
+    This map highlights the zone of the brain with a similar activity.
+
+    Args:
+        sim_mtrx (np.array): The similarity matrix. each columns or row is a similarity map
+        spatial_position (np.array): A 3xn array of the spatial position of the voxel. 
+                                    Each column is a voxel position.
+    
+    Returns:
+        edge_maps_mean (np.array): The mean edge map of the similarity maps.
+    """
+    
+    # Extract voxel indices (get a cube of the ROI)
+    x_indices = spatial_position[0]
+    y_indices = spatial_position[1]
+    z_indices = spatial_position[2]
+    # Determine the array size
+    x_min, x_max = x_indices.min(), x_indices.max()
+    y_min, y_max = y_indices.min(), y_indices.max()
+    z_min, z_max = z_indices.min(), z_indices.max()
+    size_x = x_max - x_min + 1
+    size_y = y_max - y_min + 1
+    size_z = z_max - z_min + 1
+    # Adjust indices to start from zero
+    x_adjusted = x_indices - x_min
+    y_adjusted = y_indices - y_min
+    z_adjusted = z_indices - z_min
+    # readjust the spatial position
+    position_adjusted = np.array([x_adjusted, 
+                                  y_adjusted,
+                                  z_adjusted])
+    # Initialize a mask for the region of interest
+    roi_adjusted = np.array(flat2volum(sim_mtrx[:,0], position_adjusted)>0)
+    # Initialize the edge map
+    edge_maps_mean = np.zeros_like(roi_adjusted)
+    # loop across each columns in sim matrix (coressponding to a sim map)
+    for sim_map_id in range(sim_mtrx.shape[0]):
+        # Extract a similarty map
+        sim_map_flat = sim_mtrx[:,sim_map_id]
+        # transform the sim map in 3D
+        sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
+        # Compute the gradient magnitude map
+        grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d, roi_adjusted)
+        # Blurring the sim map
+        grad_map_blur = gaussian_blurring(grad_map)
+        # Detect edges form sim_map
+        edge_map = non_maxima_suppression_3d(grad_map_blur, gx, gy, gz , roi_adjusted)
+        # Compute the mean edge map
+        edge_maps_mean = edge_maps_mean + edge_map/sim_mtrx.shape[0]
+    
+    
+    # Place the edge map back in the original volume
+    final_edge_map = np.zeros(volumne_shape)
+    final_edge_map[x_min:x_max+1, y_min:y_max+1, z_min:z_max+1] = edge_maps_mean
+    return final_edge_map
+
+
+if __name__ == '__main__':
+    import os
+    import scipy
+    # Load a similartiy matrix
+    outdir_sim_mtrx = 'G:/HCP/outputs/sim_mtrx'
+    out_base_name = 'similarity_matrix_S02_20241023_114059'
+    file_path = os.path.join(outdir_sim_mtrx, out_base_name )
+    loaded_data = scipy.io.loadmat(file_path)
+    sim_matrix = loaded_data['S']
+    spatial_position = loaded_data['spatial_position'] 
+    
+    edge_map = pipeline_wig2014(sim_matrix, 
+                                spatial_position)
+    
+
+    # Visualize the original volume, gradient magnitude, and edge map
+    visualize_slices(volume, cmap='viridis')
+    visualize_slices(gradient_magnitude, cmap='magma')
