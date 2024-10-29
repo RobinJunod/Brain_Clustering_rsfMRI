@@ -8,9 +8,7 @@ gradient magnitude map of a 3D image. The gradient magnitude map is a
 #%%
 import numpy as np
 
-from scipy.interpolate import griddata
-from scipy.ndimage import gaussian_filter, sobel
-import scipy.ndimage as ndi
+from scipy.ndimage import gaussian_filter
 
 
 def gradient_magnitude(volume: np.array):
@@ -133,7 +131,7 @@ def custom_gradient_map_gaussian(sim_matrix,
 
 
 def blur_gradient_map(gradient_magnitude_map: np.ndarray,
-                      sigma: float = 1.0) -> np.ndarray:
+                      sigma: float = 0.5) -> np.ndarray:
     """Apply Gaussian blur to the gradient magnitude map."""
     from scipy.ndimage import gaussian_filter
     print('Applying Gaussian blur to the gradient magnitude map...')
@@ -141,23 +139,7 @@ def blur_gradient_map(gradient_magnitude_map: np.ndarray,
     return blurred_map
 
 
-#%%
-if __name__=='__main__':
-    #The metric-gradient-all function in Caret 5.65 computes the magnitude of the gradient at each verte
-    # create test dataset 
-    # brain mask
-    # brain roi
-    # create 
-    from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii
-    path_roi = r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\ROI_postcentral.nii'
-    path_mask =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\MASK_wholebrain.nii'
-    path_fmri =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\HCP\rfMRI_REST1_LR.nii'
-    # extract data and affine transformation matrix
-    fmri_data, _ = extract_4Ddata_from_nii(path_fmri)
-    roi_data, original_affine = extract_3Ddata_from_nii(path_roi)
-    mask_data, _ = extract_3Ddata_from_nii(path_mask)
     
-# %%
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -214,9 +196,7 @@ def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
     
     
     
-#%% CREATE A CUSTOM 3D DATASET FOR TESTING
-import numpy as np
-
+#CREATE A CUSTOM 3D DATASET FOR TESTING
 def create_3d_test_data(function, shape= (50, 50, 50) , center=(25, 25, 25)  , radius= 15):
     """
     Creates a 3D array with a spherical ROI, where values inside the ROI are defined by a function
@@ -263,7 +243,7 @@ volume, roi_mask = create_3d_test_data(sinusoidal_function)
 
 
 
-#%% 
+
 # CREATE A 3D VOLUME FROM THE FLATTENED SIMILARITY MAP
 def flat2volum(flatten_array : np.array, # 1xn
                voxel_position : np.array,# 3xn
@@ -285,7 +265,6 @@ def flat2volum(flatten_array : np.array, # 1xn
     volume[x_indices, y_indices, z_indices] = flatten_array
     return volume
 
-# %%
 # COMPUTE THE SPATIAL MAGNITUDE GRADIENT INSIDE OF A ROI
 def compute_gradient_inside_ROI(volume, 
                                 roi_mask):
@@ -324,10 +303,9 @@ def compute_gradient_inside_ROI(volume,
     gz = np.where(roi_mask, gz, 0)
     
     return gradient_magnitude, (gx, gy, gz)
-# %%
 # APPLY GAUSSIAN BLURRING
 def gaussian_blurring(volume_scalar : np.array,
-                      sigma : float = 2):
+                      sigma : float = 1):
     """Takes a 3D numpy array and apply a gaussian kernel to blur it
 
     Args:
@@ -339,7 +317,6 @@ def gaussian_blurring(volume_scalar : np.array,
     blurred_volume = gaussian_filter(volume_scalar, sigma=sigma)
     return blurred_volume
 
-#%%
 # APPLY THE NON MAXIMA ALGORITHM FOR A BETTER EDGE DETECTION
 def non_maxima_suppression_3d(gradient_magnitude, gx, gy, gz, roi_mask):
     """
@@ -407,7 +384,6 @@ def non_maxima_suppression_3d(gradient_magnitude, gx, gy, gz, roi_mask):
                 nms[x, y, z] = gradient_magnitude[x, y, z]
     
     return nms
-# %%
 def pipeline_wig2014(sim_mtrx,
                      spatial_position,
                      volumne_shape : tuple=(91,109,91)):
@@ -443,7 +419,8 @@ def pipeline_wig2014(sim_mtrx,
                                   y_adjusted,
                                   z_adjusted])
     # Initialize a mask for the region of interest
-    roi_adjusted = np.array(flat2volum(sim_mtrx[:,0], position_adjusted)>0)
+    roi_adjusted = np.zeros((size_x, size_y, size_z))
+    roi_adjusted[x_adjusted, y_adjusted, z_adjusted] = 1
     # Initialize the edge map
     edge_maps_mean = np.zeros_like(roi_adjusted)
     # loop across each columns in sim matrix (coressponding to a sim map)
@@ -452,12 +429,12 @@ def pipeline_wig2014(sim_mtrx,
         sim_map_flat = sim_mtrx[:,sim_map_id]
         # transform the sim map in 3D
         sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
-        # Compute the gradient magnitude map
-        grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d, roi_adjusted)
         # Blurring the sim map
-        grad_map_blur = gaussian_blurring(grad_map)
+        sim_map_3d_blurr = gaussian_blurring(sim_map_3d)
+        # Compute the gradient magnitude map
+        grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d_blurr, roi_adjusted)
         # Detect edges form sim_map
-        edge_map = non_maxima_suppression_3d(grad_map_blur, gx, gy, gz , roi_adjusted)
+        edge_map = non_maxima_suppression_3d(grad_map, gx, gy, gz , roi_adjusted)
         # Compute the mean edge map
         edge_maps_mean = edge_maps_mean + edge_map/sim_mtrx.shape[0]
     
@@ -467,10 +444,12 @@ def pipeline_wig2014(sim_mtrx,
     final_edge_map[x_min:x_max+1, y_min:y_max+1, z_min:z_max+1] = edge_maps_mean
     return final_edge_map
 
-
+#%%
 if __name__ == '__main__':
     import os
     import scipy
+    import datetime
+    import nibabel as nib
     # Load a similartiy matrix
     outdir_sim_mtrx = 'G:/HCP/outputs/sim_mtrx'
     out_base_name = 'similarity_matrix_S02_20241023_114059'
@@ -478,11 +457,19 @@ if __name__ == '__main__':
     loaded_data = scipy.io.loadmat(file_path)
     sim_matrix = loaded_data['S']
     spatial_position = loaded_data['spatial_position'] 
-    
+    #%%
     edge_map = pipeline_wig2014(sim_matrix, 
                                 spatial_position)
     
+    # Save the edge map as a NIfTI file
+    from toolbox_parcellation import extract_3Ddata_from_nii
+    outdir_grad_map = 'G:/HCP/outputs/grad_map_wig2014'
+    out_base_name = f'gradient_map_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    path_roi = 'G:/RSFC/ROI_data/ROI_postcentral.nii'
+    _, original_affine = extract_3Ddata_from_nii(path_roi)
+    # Ensure the output directory exists
+    os.makedirs(outdir_grad_map, exist_ok=True)
+    nii_img = nib.Nifti1Image(edge_map, affine=original_affine)
+    nib.save(nii_img, os.path.join(outdir_grad_map, out_base_name + '.nii'))# %%
 
-    # Visualize the original volume, gradient magnitude, and edge map
-    visualize_slices(volume, cmap='viridis')
-    visualize_slices(gradient_magnitude, cmap='magma')
+# %%
