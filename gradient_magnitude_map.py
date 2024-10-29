@@ -2,32 +2,17 @@
 gradient magnitude map of a 3D image. The gradient magnitude map is a 
 3D image that contains the gradient magnitude of the input 3D image.
 
+THE BASELINE METHOD IS THE WIG 2014 METHOD 
+'An approach for parcellating human cortical areas using restingstate correlations', Wig et al. 2014
+
 @myspace 2024-2025 EPFL
+contact : robin.junod@epfl.ch
 """
 
 #%%
 import numpy as np
-
+import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
-
-
-def gradient_magnitude(volume: np.array):
-    """An algorithm that computes the first spatial derivate. Which gives a gradient.
-    The magnitude of this gradient is computed for each voxels
-
-    Args:
-        volume (np.array): a 3D numpy array with each values representing a voxel
-
-    Returns:
-        np.array: gradient magnitude map
-    """
-    # Compute gradients along each axis
-    grad_x, grad_y, grad_z = np.gradient(volume)
-    
-    # Compute gradient magnitude at each voxel
-    gradient_magnitude = np.sqrt(grad_x**2 + grad_y**2 + grad_z**2)
-    
-    return gradient_magnitude
 
     
 # GRADIENT MAGNITUDE MAP CUSTOM METHOD
@@ -130,6 +115,8 @@ def custom_gradient_map_gaussian(sim_matrix,
     return gradient_magnitude_map
 
 
+# GRADIENT MAGNITUDE MAP WIG 2014 METHOD
+
 def blur_gradient_map(gradient_magnitude_map: np.ndarray,
                       sigma: float = 0.5) -> np.ndarray:
     """Apply Gaussian blur to the gradient magnitude map."""
@@ -138,10 +125,6 @@ def blur_gradient_map(gradient_magnitude_map: np.ndarray,
     blurred_map = gaussian_filter(gradient_magnitude_map, sigma=sigma)
     return blurred_map
 
-
-    
-import numpy as np
-import matplotlib.pyplot as plt
 
 def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
     """
@@ -384,6 +367,7 @@ def non_maxima_suppression_3d(gradient_magnitude, gx, gy, gz, roi_mask):
                 nms[x, y, z] = gradient_magnitude[x, y, z]
     
     return nms
+
 def pipeline_wig2014(sim_mtrx,
                      spatial_position,
                      volumne_shape : tuple=(91,109,91)):
@@ -430,7 +414,7 @@ def pipeline_wig2014(sim_mtrx,
         # transform the sim map in 3D
         sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
         # Blurring the sim map
-        sim_map_3d_blurr = gaussian_blurring(sim_map_3d)
+        sim_map_3d_blurr = gaussian_blurring(sim_map_3d, sigma=2)
         # Compute the gradient magnitude map
         grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d_blurr, roi_adjusted)
         # Detect edges form sim_map
