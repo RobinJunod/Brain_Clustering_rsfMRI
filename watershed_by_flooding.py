@@ -11,7 +11,7 @@ import heapq
 from scipy import ndimage
 
 
-def find_seeds(gradient_magnitude_map: np.ndarray) -> np.ndarray:
+def find_seeds_basic(gradient_magnitude_map: np.ndarray) -> np.ndarray:
     """Find the seeds for the watershed algorithm.
     Args:
         gradient_magnitude_map (3D np.ndarray): Gradient magnitude map
@@ -50,12 +50,20 @@ def find_seeds(gradient_magnitude_map: np.ndarray) -> np.ndarray:
     return seeds_maps
 
 
+
+
 # TODO : Implement the watershed algorithm BIG TODO (for now it doesn't work)
 
 def watershed_by_flooding(gradient_magnitude_map: np.ndarray) -> np.ndarray:
 
     print('Search seeds for the watershed algorithm...')
-    seeds_maps = find_seeds(gradient_magnitude_map)
+    seeds = find_seeds_basic(gradient_magnitude_map)
+    # Select only the smallest seeds
+    seeds_val = gradient_magnitude_map[(seeds>0)]
+    seeds_val_3d = gradient_magnitude_map*seeds
+    max_seeds_val = np.percentile(seeds_val, 50) # select the 50% smallest seeds
+    seeds_selected = (seeds_val_3d*(seeds_val_3d>0)*(seeds_val_3d<max_seeds_val))>0
+    
     
     print('Performing watershed by flooding...')
     # gradient map preprocessing
@@ -66,7 +74,7 @@ def watershed_by_flooding(gradient_magnitude_map: np.ndarray) -> np.ndarray:
     mask[indices] = 0
     
     # Initialize labels array
-    labels, num_labels = ndimage.label(seeds_maps > 0)
+    labels, num_labels = ndimage.label(seeds_selected > 0)
     
     # Initialize priority queue
     # Elements are tuples: (priority, x, y, z, label)
@@ -124,10 +132,11 @@ def watershed_by_flooding(gradient_magnitude_map: np.ndarray) -> np.ndarray:
 
 if __name__ == "__main__":
     import os
+    from datetime import datetime
     import nibabel as nib
     # Test the watershed by flooding algorithm from a gradient map
-    outdir_grad_map ='G:/HCP/outputs/grad_maps/'
-    file_name = "gradient_map_S01_20241021_163908.nii"
+    outdir_grad_map = f'G:/HCP/outputs/grad_map_wig2014/'
+    file_name = f"gradient_map_20241029_101439.nii"
     file_path = os.path.join(outdir_grad_map, file_name)
     nii_img = nib.load(file_path)
     gradient_magnitude_map = nii_img.get_fdata()
@@ -136,3 +145,13 @@ if __name__ == "__main__":
     labels_map = watershed_by_flooding(gradient_magnitude_map)
     print(labels_map)  # Print the resulting labels
     print(f"Number of regions: {np.max(labels_map)}")  # Print the number of regions
+    # %%
+    # Save the parcellation map
+    outdir_parcel = 'G:/HCP/outputs/parcellation_map/'
+    # Save the parcellation map
+    out_base_name = f'parcellation_map_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
+    # Ensure the output directory exists
+    os.makedirs(outdir_parcel, exist_ok=True)
+    nii_img = nib.Nifti1Image(labels_map, affine=original_affine)
+    nib.save(nii_img, os.path.join(outdir_parcel, out_base_name + '.nii'))
+# %%

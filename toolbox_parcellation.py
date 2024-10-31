@@ -124,14 +124,5 @@ def create_boundary_maps(parcellation):
     return boundary_map
 #%% This part is used to download data from the HCP
 # USES THE WB_COMMAND instead !!!!!!!!!!
-def download_hcp_data(subject: str='100206',
-                      out_dir: str='./hcp_data') -> None:
-    from hcp_utils import fetch_hcp
-    fetch_hcp(subject=subject, data_type='rfMRI_REST1_LR', out_dir=out_dir)
-    fetch_hcp(subject=subject, data_type='T1w', out_dir=out_dir)
-    return None
 
 
-
-
-# %%

@@ -2,6 +2,8 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
+import main
+
 def select_file(label, file_type):
     """Opens a file dialog and updates the label with the selected file path."""
     file_path = filedialog.askopenfilename(
@@ -40,7 +42,6 @@ def start_computation():
     if not validate_selections():
         return
     
-    # Example of a computational process - Replace this with actual processing logic
     log_message("Starting computation...")
     fmri_file = fmri_label.cget("text")
     roi_file = roi_label.cget("text")
@@ -52,58 +53,61 @@ def start_computation():
     log_message(f"Mask File: {mask_file}")
     log_message(f"Output Folder: {output_folder}")
     
-    # Simulate some computation
-    log_message("Processing data...")
-    # Here you can add the actual code for loading, processing, and saving the data.
-    log_message("Computation completed successfully!")
+    try:
+        main.main(fmri_file, roi_file, mask_file, output_folder)
+        log_message("Computation completed successfully!")
+    except Exception as e:
+        log_message(f"An error occurred: {e}")
 
 def log_message(message):
     """Logs a message in the text box."""
     log_textbox.insert(tk.END, f"{message}\n")
     log_textbox.see(tk.END)  # Auto-scroll to the bottom
 
-# Create the main application window
-root = tk.Tk()
-root.title("Advanced File Selector with Computation")
-root.geometry("500x500")
 
-# Labels and buttons for selecting files
-fmri_label = tk.Label(root, text="No file selected", wraplength=450)
-fmri_button = tk.Button(root, text="Select Resting State fMRI Data", command=lambda: select_file(fmri_label, "Resting State fMRI Data"))
+if __name__ == "__main__":
+    # Create the main application window
+    root = tk.Tk()
+    root.title("Advanced File Selector with Computation")
+    root.geometry("500x500")
 
-roi_label = tk.Label(root, text="No file selected", wraplength=450)
-roi_button = tk.Button(root, text="Select ROI File", command=lambda: select_file(roi_label, "ROI File"))
+    # Labels and buttons for selecting files
+    fmri_label = tk.Label(root, text="No file selected", wraplength=450)
+    fmri_button = tk.Button(root, text="Select Resting State fMRI Data", command=lambda: select_file(fmri_label, "Resting State fMRI Data"))
 
-mask_label = tk.Label(root, text="No file selected", wraplength=450)
-mask_button = tk.Button(root, text="Select Brain Mask", command=lambda: select_file(mask_label, "Brain Mask"))
+    roi_label = tk.Label(root, text="No file selected", wraplength=450)
+    roi_button = tk.Button(root, text="Select ROI File", command=lambda: select_file(roi_label, "ROI File"))
 
-output_label = tk.Label(root, text="No folder selected", wraplength=450)
-output_button = tk.Button(root, text="Select Output Folder", command=lambda: select_output_folder(output_label))
+    mask_label = tk.Label(root, text="No file selected", wraplength=450)
+    mask_button = tk.Button(root, text="Select Brain Mask", command=lambda: select_file(mask_label, "Brain Mask"))
 
-# Button to start the computation
-go_button = tk.Button(root, text="Go", command=start_computation)
+    output_label = tk.Label(root, text="No folder selected", wraplength=450)
+    output_button = tk.Button(root, text="Select Output Folder", command=lambda: select_output_folder(output_label))
 
-# Textbox for logging messages
-log_textbox = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=10)
-log_textbox.config(state=tk.NORMAL)  # Make the textbox editable so we can log messages
+    # Button to start the computation
+    go_button = tk.Button(root, text="Start Parcellation", command=start_computation)
 
-# Layout: Arrange buttons and labels in the window
-fmri_button.pack(pady=5)
-fmri_label.pack(pady=5)
+    # Textbox for logging messages
+    log_textbox = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=10)
+    log_textbox.config(state=tk.NORMAL)  # Make the textbox editable so we can log messages
 
-roi_button.pack(pady=5)
-roi_label.pack(pady=5)
+    # Layout: Arrange buttons and labels in the window
+    fmri_button.pack(pady=5)
+    fmri_label.pack(pady=5)
 
-mask_button.pack(pady=5)
-mask_label.pack(pady=5)
+    roi_button.pack(pady=5)
+    roi_label.pack(pady=5)
 
-output_button.pack(pady=5)
-output_label.pack(pady=5)
+    mask_button.pack(pady=5)
+    mask_label.pack(pady=5)
 
-go_button.pack(pady=10)
+    output_button.pack(pady=5)
+    output_label.pack(pady=5)
 
-log_textbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+    go_button.pack(pady=10)
 
-# Start the GUI event loop
-root.mainloop()
+    log_textbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+    # Start the GUI event loop
+    root.mainloop()
 # %%

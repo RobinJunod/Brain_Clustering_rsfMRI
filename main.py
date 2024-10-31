@@ -11,11 +11,12 @@ import matplotlib.pyplot as plt
 
 from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii
 
-from gradient_magnitude_map import custom_gradient_map_gaussian
+from gradient_magnitude_map import custom_gradient_map_gaussian, \
+                                    pipeline_wig2014
 
 from similarity_matrix import fingerprint_simmatrix_in_ROI, \
                               simple_simmatrix_in_ROI
-                                        
+                        
 from watershed_by_flooding import watershed_by_flooding
 
 
@@ -74,7 +75,7 @@ def compute_and_save_singlesub(subject_id: str,
     nVoxels = np.prod(roi_data.shape)
 
     # 1 :: Compute the similarity matrix
-    sim_matrix, spatial_position = simple_simmatrix_in_ROI(fmri_data, roi_data)
+    sim_matrix, spatial_position = fingerprint_simmatrix_in_ROI(fmri_data, roi_data)
     # Save the similarity matrix
     out_base_name = f'similarity_matrix_{subject_id}_{datetime.now().strftime("%Y%m%DS_%H%M%S")}'
     # Ensure the output directory exists
@@ -94,7 +95,9 @@ def compute_and_save_singlesub(subject_id: str,
     
     
     # 2 :: Compute the gradient map
-    gradient_magnitude_map = custom_gradient_map_gaussian(sim_matrix, spatial_position, roi_data.shape)
+    gradient_magnitude_map = pipeline_wig2014(sim_matrix,
+                                              spatial_position,
+                                              roi_data.shape)
     # Save Results
     out_base_name = f'gradient_map_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     # Ensure the output directory exists
@@ -112,7 +115,7 @@ def compute_and_save_singlesub(subject_id: str,
     # 3 :: Perform watershed algorithm
     labels = watershed_by_flooding(gradient_magnitude_map)
     # Save the parcellation map
-    out_base_name = f'parcellation_map_{datetime.now().strftime("%Y%m%D_%H%M%S")}'
+    out_base_name = f'parcellation_map_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
     # Ensure the output directory exists
     os.makedirs(outdir_parcel, exist_ok=True)
     nii_img = nib.Nifti1Image(labels, affine=original_affine)
@@ -130,6 +133,21 @@ def compute_and_save_singlesub(subject_id: str,
     # print('boundary map saved.')
     return None
 
+def main(fmri_file, roi_file, mask_file, output_folder):
+    
+    outdir_grad_map = output_folder + 'grad_maps'
+    outdir_sim_mtrx = output_folder + 'sim_mtrx'
+    outdir_parcel = output_folder + 'parcels'
+    
+    compute_and_save_singlesub(subject_id,
+                                fmri_file,
+                                roi_file,
+                                mask_file,
+                                outdir_grad_map,
+                                outdir_sim_mtrx,
+                                outdir_parcel)
+    
+    return None
 
 
 if __name__ == '__main__':
@@ -163,12 +181,3 @@ if __name__ == '__main__':
 
 
 
-#TODO list
-# - perform ICA-FIX on each subject
-# - Implement the group gradient map
-
-# - Implement the watershed algorithm
-# - Implement the watershed algorithm using flooding
-
-
-# %%

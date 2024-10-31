@@ -213,15 +213,15 @@ def create_3d_test_data(function, shape= (50, 50, 50) , center=(25, 25, 25)  , r
     array[roi_mask] = function(distances[roi_mask])
     
     return array, roi_mask
-
-
 # Define a sinusoidal function for values inside the ROI
 def sinusoidal_function(distance, radius=15):
     wavelength = radius / 4   # Adjust the wavelength to control oscillation frequency
     return np.sin(2 * np.pi * distance / wavelength) + 10
 
+
 # Generate the 3D array with sinusoidal values inside the spherical ROI
-volume, roi_mask = create_3d_test_data(sinusoidal_function)
+# volume, roi_mask = create_3d_test_data(sinusoidal_function)
+
 
 
 
@@ -414,7 +414,7 @@ def pipeline_wig2014(sim_mtrx,
         # transform the sim map in 3D
         sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
         # Blurring the sim map
-        sim_map_3d_blurr = gaussian_blurring(sim_map_3d, sigma=2)
+        sim_map_3d_blurr = gaussian_blurring(sim_map_3d, sigma=1)
         # Compute the gradient magnitude map
         grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d_blurr, roi_adjusted)
         # Detect edges form sim_map
@@ -432,7 +432,7 @@ def pipeline_wig2014(sim_mtrx,
 if __name__ == '__main__':
     import os
     import scipy
-    import datetime
+    from datetime import datetime
     import nibabel as nib
     # Load a similartiy matrix
     outdir_sim_mtrx = 'G:/HCP/outputs/sim_mtrx'
@@ -448,7 +448,7 @@ if __name__ == '__main__':
     # Save the edge map as a NIfTI file
     from toolbox_parcellation import extract_3Ddata_from_nii
     outdir_grad_map = 'G:/HCP/outputs/grad_map_wig2014'
-    out_base_name = f'gradient_map_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    out_base_name = f'gradient_map_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     path_roi = 'G:/RSFC/ROI_data/ROI_postcentral.nii'
     _, original_affine = extract_3Ddata_from_nii(path_roi)
     # Ensure the output directory exists

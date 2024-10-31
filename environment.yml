@@ -1,4 +1,4 @@
-name: PDMe
+pipippiname: PDMe
 channels:
   - conda-forge
   - defaults
