@@ -116,7 +116,6 @@ def custom_gradient_map_gaussian(sim_matrix,
 
 
 # GRADIENT MAGNITUDE MAP WIG 2014 METHOD
-
 def blur_gradient_map(gradient_magnitude_map: np.ndarray,
                       sigma: float = 0.5) -> np.ndarray:
     """Apply Gaussian blur to the gradient magnitude map."""
@@ -126,57 +125,6 @@ def blur_gradient_map(gradient_magnitude_map: np.ndarray,
     return blurred_map
 
 
-def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
-    """
-    Visualize slices of a 3D NumPy array.
-
-    Args:
-        volume (np.array): The 3D NumPy array to visualize.
-        axis (int): The axis along which to take slices (0 for x, 1 for y, 2 for z).
-        slice_indices (int or list of int, optional): Indices of the slices to visualize. 
-                                                      If None, the middle slice is displayed.
-        cmap (str): Colormap to use for displaying the slices.
-
-    """
-    if slice_indices is None:
-        # If no indices are provided, display the middle slice
-        idx = volume.shape[axis] // 2
-        slice_indices = [idx]
-    elif isinstance(slice_indices, int):
-        slice_indices = [slice_indices]
-    elif not isinstance(slice_indices, (list, tuple)):
-        raise TypeError("slice_indices must be an int, list, or None.")
-
-    num_slices = len(slice_indices)
-    fig, axes = plt.subplots(1, num_slices, figsize=(5 * num_slices, 5))
-    
-    # If only one subplot, put axes in a list for consistency
-    if num_slices == 1:
-        axes = [axes]
-    
-    for ax, idx in zip(axes, slice_indices):
-        if axis == 0:
-            # Slice along the x-axis
-            slice_img = volume[idx, :, :]
-            axis_name = 'X'
-        elif axis == 1:
-            # Slice along the y-axis
-            slice_img = volume[:, idx, :]
-            axis_name = 'Y'
-        elif axis == 2:
-            # Slice along the z-axis
-            slice_img = volume[:, :, idx]
-            axis_name = 'Z'
-        else:
-            raise ValueError("Axis must be 0 (x), 1 (y), or 2 (z).")
-        
-        ax.imshow(slice_img, cmap=cmap)
-        ax.set_title(f'Slice along {axis_name}-axis at index {idx}')
-        ax.axis('off')
-    
-    plt.tight_layout()
-    plt.show()
-    
     
     
 #CREATE A CUSTOM 3D DATASET FOR TESTING
@@ -218,19 +166,12 @@ def sinusoidal_function(distance, radius=15):
     wavelength = radius / 4   # Adjust the wavelength to control oscillation frequency
     return np.sin(2 * np.pi * distance / wavelength) + 10
 
-
 # Generate the 3D array with sinusoidal values inside the spherical ROI
 # volume, roi_mask = create_3d_test_data(sinusoidal_function)
 
-
-
-
-
-
 # CREATE A 3D VOLUME FROM THE FLATTENED SIMILARITY MAP
 def flat2volum(flatten_array : np.array, # 1xn
-               voxel_position : np.array,# 3xn
-               ):
+               voxel_position : np.array): # 3xn
     """From an array of scalar values and a matrix of (integer) the postion of these scalar.
     Reconstruct a 3D np.array with the positon of the voxel as index.
 
@@ -264,20 +205,16 @@ def compute_gradient_inside_ROI(volume,
     from scipy.ndimage import sobel, distance_transform_edt
     # Ensure roi_mask is boolean
     roi_mask = roi_mask.astype(bool)
-    
     # Step 1: Replace values outside the ROI with the nearest ROI value to avoid artificial gradients
     # Compute the distance transform and obtain the indices of the nearest ROI voxel
     distance, indices = distance_transform_edt(~roi_mask, return_indices=True)
     padded_volume = volume[indices[0], indices[1], indices[2]]
-    
     # Step 2: Compute gradients using the Sobel operator
     gx = sobel(padded_volume, axis=0, mode='constant')
     gy = sobel(padded_volume, axis=1, mode='constant')
     gz = sobel(padded_volume, axis=2, mode='constant')
-    
     # Step 3: Compute the gradient magnitude
     gradient_magnitude = np.sqrt(gx**2 + gy**2 + gz**2)
-    
     # Step 4: Mask the gradient magnitude to include only the ROI
     gradient_magnitude = np.where(roi_mask, gradient_magnitude, 0)
     
@@ -286,6 +223,8 @@ def compute_gradient_inside_ROI(volume,
     gz = np.where(roi_mask, gz, 0)
     
     return gradient_magnitude, (gx, gy, gz)
+
+
 # APPLY GAUSSIAN BLURRING
 def gaussian_blurring(volume_scalar : np.array,
                       sigma : float = 1):
@@ -413,10 +352,10 @@ def pipeline_wig2014(sim_mtrx,
         sim_map_flat = sim_mtrx[:,sim_map_id]
         # transform the sim map in 3D
         sim_map_3d = flat2volum(sim_map_flat, position_adjusted)
-        # Blurring the sim map
-        sim_map_3d_blurr = gaussian_blurring(sim_map_3d, sigma=1)
+        # TODO : compare without blurring the sim map
+        # sim_map_3d_blurr = gaussian_blurring(sim_map_3d, sigma=1)
         # Compute the gradient magnitude map
-        grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d_blurr, roi_adjusted)
+        grad_map, (gx,gy,gz) = compute_gradient_inside_ROI(sim_map_3d, roi_adjusted)
         # Detect edges form sim_map
         edge_map = non_maxima_suppression_3d(grad_map, gx, gy, gz , roi_adjusted)
         # Compute the mean edge map
@@ -435,22 +374,23 @@ if __name__ == '__main__':
     from datetime import datetime
     import nibabel as nib
     # Load a similartiy matrix
-    outdir_sim_mtrx = 'G:/HCP/outputs/sim_mtrx'
-    out_base_name = 'similarity_matrix_S02_20241023_114059'
+    outdir_sim_mtrx = r'G:/DATA_min_preproc/dataset_study1/S02/outputs/sim_mtrx'
+    out_base_name = 'similarity_matrix_S02_20241106_180152'
     file_path = os.path.join(outdir_sim_mtrx, out_base_name )
     loaded_data = scipy.io.loadmat(file_path)
-    sim_matrix = loaded_data['S']
+    sim_mtrx = loaded_data['S']
     spatial_position = loaded_data['spatial_position'] 
     #%%
-    edge_map = pipeline_wig2014(sim_matrix, 
-                                spatial_position)
+    edge_map = pipeline_wig2014(sim_mtrx, 
+                                spatial_position,
+                                volumne_shape=(91,109,91))
     
     # Save the edge map as a NIfTI file
-    from toolbox_parcellation import extract_3Ddata_from_nii
-    outdir_grad_map = 'G:/HCP/outputs/grad_map_wig2014'
-    out_base_name = f'gradient_map_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
-    path_roi = 'G:/RSFC/ROI_data/ROI_postcentral.nii'
-    _, original_affine = extract_3Ddata_from_nii(path_roi)
+    from toolbox_parcellation import extract_nii_files
+    outdir_grad_map = r'G:/DATA_min_preproc/dataset_study1/S02/outputs/edge_map'
+    out_base_name = f'mean_edge_map_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    # _, _, _, original_affine = extract_nii_files(fmri_path, roi_mask_path, brain_mask_path, output_dir)
+
     # Ensure the output directory exists
     os.makedirs(outdir_grad_map, exist_ok=True)
     nii_img = nib.Nifti1Image(edge_map, affine=original_affine)

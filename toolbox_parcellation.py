@@ -1,9 +1,10 @@
 #%%
+import os
 import sys
 import numpy as np
-# import matplotlib.pyplot as plt
 import nibabel as nib
-
+from nilearn.image import resample_to_img
+import matplotlib.pyplot as plt
 
 def extract_4Ddata_from_nii(nii_file):
     """
@@ -38,6 +39,62 @@ def extract_3Ddata_from_nii(nii_file):
     else:
         sys.exit('Data did not loaded successfully')
     return data, original_affine
+
+
+def extract_nii_files(fmri_path, roi_mask_path, brain_mask_path, output_dir):
+    # Define file paths
+    resampled_roi_mask_path = output_dir + 'resampled_roi_mask.nii'
+    resampled_brain_mask_path = output_dir + 'resampled_brain_mask.nii'
+
+    # Load images using nibabel
+    fmri_img = nib.load(fmri_path)
+    roi_mask_img = nib.load(roi_mask_path)
+    brain_mask_img = nib.load(brain_mask_path)
+
+    # Resample masks to fMRI space
+    roi_mask_resampled = resample_to_img(
+        source_img=roi_mask_img,
+        target_img=fmri_img,
+        interpolation='nearest'
+    )
+
+    brain_mask_resampled = resample_to_img(
+        source_img=brain_mask_img,
+        target_img=fmri_img,
+        interpolation='nearest'
+    )
+
+    # Extract affine transformations
+    fmri_affine = fmri_img.affine
+    roi_affine = roi_mask_resampled.affine
+    brain_affine = brain_mask_resampled.affine
+
+    # Function to compare affines
+    def affines_are_equal(affine1, affine2, tol=1e-5):
+        return np.allclose(affine1, affine2, atol=tol)
+
+    # Verify that all affines match the fMRI affine
+    roi_affine_matches = affines_are_equal(fmri_affine, roi_affine)
+    brain_affine_matches = affines_are_equal(fmri_affine, brain_affine)
+
+    print(f"ROI Mask affine matches fMRI affine: {roi_affine_matches}")
+    print(f"Brain Mask affine matches fMRI affine: {brain_affine_matches}")
+
+    # Assert if affines do not match
+    assert roi_affine_matches, "ROI mask affine does not match fMRI affine."
+    assert brain_affine_matches, "Brain mask affine does not match fMRI affine."
+    # Optional: Save resampled masks
+    os.makedirs(output_dir, exist_ok=True)
+    roi_mask_resampled.to_filename(resampled_roi_mask_path)
+    brain_mask_resampled.to_filename(resampled_brain_mask_path)
+
+    # Convert to np array
+    fmri_array = fmri_img.get_fdata()
+    roi_mask_array = roi_mask_resampled.get_fdata()
+    brain_mask_array = brain_mask_resampled.get_fdata()
+
+    return fmri_array, roi_mask_array, brain_mask_array, fmri_affine
+
 
 
 def pca(X):
@@ -122,7 +179,80 @@ def create_boundary_maps(parcellation):
                 if any(current_value != neighbor for neighbor in neighbors):
                     boundary_map[x, y, z] = 1
     return boundary_map
-#%% This part is used to download data from the HCP
-# USES THE WB_COMMAND instead !!!!!!!!!!
 
 
+# This part is used to download data from the HCP
+def expand_mask(mask, expansion_voxels=2):
+    """
+    Expands a 3D binary mask by a specified number of voxels in all directions.
+    Parameters:
+    - mask (np.ndarray): A 3D NumPy array with binary values (0 and 1).
+    - expansion_voxels (int): Number of voxels to expand the mask in each direction.
+
+    Returns:
+    - expanded_mask (np.ndarray): The expanded 3D binary mask.
+    """
+    from scipy.ndimage import binary_dilation
+    # Validate input
+    if not isinstance(mask, np.ndarray):
+        raise TypeError("Input mask must be a NumPy array.")
+    if mask.ndim != 3:
+        raise ValueError("Input mask must be a 3D array.")
+    if not isinstance(expansion_voxels, int) or expansion_voxels < 0:
+        raise ValueError("expansion_voxels must be a non-negative integer.")
+    # Perform binary dilation
+    expanded_mask = binary_dilation(mask, iterations=expansion_voxels).astype(mask.dtype)
+    return expanded_mask
+
+
+def visualize_slices(volume, axis=2, slice_indices=None, cmap='gray'):
+    """
+    Visualize slices of a 3D NumPy array.
+
+    Args:
+        volume (np.array): The 3D NumPy array to visualize.
+        axis (int): The axis along which to take slices (0 for x, 1 for y, 2 for z).
+        slice_indices (int or list of int, optional): Indices of the slices to visualize. 
+                                                      If None, the middle slice is displayed.
+        cmap (str): Colormap to use for displaying the slices.
+
+    """
+    if slice_indices is None:
+        # If no indices are provided, display the middle slice
+        idx = volume.shape[axis] // 2
+        slice_indices = [idx]
+    elif isinstance(slice_indices, int):
+        slice_indices = [slice_indices]
+    elif not isinstance(slice_indices, (list, tuple)):
+        raise TypeError("slice_indices must be an int, list, or None.")
+
+    num_slices = len(slice_indices)
+    fig, axes = plt.subplots(1, num_slices, figsize=(5 * num_slices, 5))
+    
+    # If only one subplot, put axes in a list for consistency
+    if num_slices == 1:
+        axes = [axes]
+    
+    for ax, idx in zip(axes, slice_indices):
+        if axis == 0:
+            # Slice along the x-axis
+            slice_img = volume[idx, :, :]
+            axis_name = 'X'
+        elif axis == 1:
+            # Slice along the y-axis
+            slice_img = volume[:, idx, :]
+            axis_name = 'Y'
+        elif axis == 2:
+            # Slice along the z-axis
+            slice_img = volume[:, :, idx]
+            axis_name = 'Z'
+        else:
+            raise ValueError("Axis must be 0 (x), 1 (y), or 2 (z).")
+        
+        ax.imshow(slice_img, cmap=cmap)
+        ax.set_title(f'Slice along {axis_name}-axis at index {idx}')
+        ax.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+    

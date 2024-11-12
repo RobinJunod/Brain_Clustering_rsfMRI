@@ -9,7 +9,8 @@ import nibabel as nib
 import scipy.io
 import matplotlib.pyplot as plt
 
-from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii
+from toolbox_parcellation import extract_4Ddata_from_nii, extract_3Ddata_from_nii, expand_mask\
+                                ,extract_nii_files
 
 from gradient_magnitude_map import custom_gradient_map_gaussian, \
                                     pipeline_wig2014
@@ -17,67 +18,57 @@ from gradient_magnitude_map import custom_gradient_map_gaussian, \
 from similarity_matrix import fingerprint_simmatrix_in_ROI, \
                               simple_simmatrix_in_ROI
                         
-from watershed_by_flooding import watershed_by_flooding
+from watershed_by_flooding import watershed_by_flooding, find_seeds
 
 
 
 
 
-def preprocess_ROI_data(roi_data: np.ndarray,
-                        mask_data: np.ndarray,
+def preprocess_ROI_data(roi_mask: np.ndarray,
+                        brain_mask: np.ndarray,
                         fmri_data: np.ndarray) -> np.ndarray:
     """Preprocess the ROI data"""
     # Keep only the ROI voxels inside the mask
-    roi_data = roi_data * mask_data
+    roi_mask = roi_mask * brain_mask
     # Keep only the ROI voxels that have positive variace in the fMRI data
     voxel_variances = np.var(fmri_data, axis=3)
-    roi_data = roi_data * (voxel_variances > 0)
-    return roi_data
+    roi_mask = roi_mask * (voxel_variances > 0)
+    return roi_mask
 
-def blur_gradient_map(gradient_magnitude_map: np.ndarray,
-                      sigma: float = 1.0) -> np.ndarray:
-    """Apply Gaussian blur to the gradient magnitude map."""
-    from scipy.ndimage import gaussian_filter
-    print('Applying Gaussian blur to the gradient magnitude map...')
-    blurred_map = gaussian_filter(gradient_magnitude_map, sigma=sigma)
-    return blurred_map
 
-def compute_and_save_gradient_map_single_subject(subject_id: str,
-                                                path_fmri: str,
-                                                path_roi: str,
-                                                path_mask: str,
-                                                outdir_grad_map: str,
-                                                outdir_sim_mtrx: str,
-                                                outdir_parcel: str):
-    
-    pass
 
 def compute_and_save_singlesub(subject_id: str,
-                                path_fmri: str,
-                                path_roi: str,
-                                path_mask: str,
+                                fmri_path: str,
+                                roi_mask_path: str,
+                                brain_mask_path: str,
                                 outdir_grad_map: str,
                                 outdir_sim_mtrx: str,
                                 outdir_parcel: str):
     # extract data and affine transformation matrix
-    fmri_data, _ = extract_4Ddata_from_nii(path_fmri)
-    roi_data, original_affine = extract_3Ddata_from_nii(path_roi)
-    mask_data, _ = extract_3Ddata_from_nii(path_mask)
+    fmri_data, roi_mask, brain_mask, original_affine = extract_nii_files(fmri_path, roi_mask_path, brain_mask_path, output_dir)
+    # Expand the mask size to avoid border issues with the gradient map
+    extended_roi_mask = expand_mask(roi_mask, expansion_voxels=3)
     
     # Check the dimensions of the data
-    if not fmri_data.shape[:-1] == mask_data.shape == roi_data.shape:
+    if not fmri_data.shape[:-1] == brain_mask.shape == extended_roi_mask.shape:
         print('fmri shape,' , fmri_data.shape[:-1])
-        print('mask shape,' , mask_data.shape)
-        print('roi shape,' , roi_data.shape)
+        print('mask shape,' , brain_mask.shape)
+        print('roi shape,' , roi_mask.shape)
         sys.exit('Data dimensions do not match. Exiting.')
     # Preprocess the ROI data
-    roi_data = preprocess_ROI_data(roi_data, mask_data, fmri_data)
-    nVoxels = np.prod(roi_data.shape)
+    print('Preprocessing the ROI data...')
+    extended_roi_mask = preprocess_ROI_data(extended_roi_mask, brain_mask, fmri_data)
+    roi_mask = preprocess_ROI_data(roi_mask, brain_mask, fmri_data)
+    print('ROI data preprocessed.')
+    nVoxels = np.prod(extended_roi_mask.shape)
 
     # 1 :: Compute the similarity matrix
-    sim_matrix, spatial_position = fingerprint_simmatrix_in_ROI(fmri_data, roi_data)
+    print('Start similarity matrix computation...')
+    sim_matrix, spatial_position = fingerprint_simmatrix_in_ROI(fmri_data, 
+                                                                extended_roi_mask,
+                                                                brain_mask)
     # Save the similarity matrix
-    out_base_name = f'similarity_matrix_{subject_id}_{datetime.now().strftime("%Y%m%DS_%H%M%S")}'
+    out_base_name = f'similarity_matrix_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_sim_mtrx, exist_ok=True)
     # Prepare the dictionary to save both sim_matrix and spatial_position
@@ -95,33 +86,47 @@ def compute_and_save_singlesub(subject_id: str,
     
     
     # 2 :: Compute the gradient map
-    gradient_magnitude_map = pipeline_wig2014(sim_matrix,
-                                              spatial_position,
-                                              roi_data.shape)
+    print('Start gradient map computation...')
+    mean_edge_map = pipeline_wig2014(sim_matrix,
+                                    spatial_position,
+                                    extended_roi_mask.shape)
     # Save Results
-    out_base_name = f'gradient_map_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    out_base_name = f'mean_edge_map_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_grad_map, exist_ok=True)
     # Create a NIfTI image using nibabel
-    nii_img = nib.Nifti1Image(gradient_magnitude_map, affine=original_affine)
+    nii_img = nib.Nifti1Image(mean_edge_map, affine=original_affine)
     nib.save(nii_img, os.path.join(outdir_grad_map, out_base_name + '.nii'))
     print('Gradient map saved.')
     # TODO code for loading Specify the path to the NIfTI file you want to load
     # file_path = os.path.join(outdir_grad_map, out_base_name + '.nii')
     # nii_img = nib.load(file_path)
-    # gradient_magnitude_map = nii_img.get_fdata()
+    # mean_edge_map = nii_img.get_fdata()
     # original_affine = nii_img.affine
     
+    # 3.0 :: restric the edge map to the ROI (otherwise it will be the extended ROI)
+    seeds = find_seeds(mean_edge_map,
+                       roi_mask)
     # 3 :: Perform watershed algorithm
-    labels = watershed_by_flooding(gradient_magnitude_map)
+    labels = watershed_by_flooding(mean_edge_map,
+                                   seeds,
+                                   roi_mask,
+                                   flooding_percent=100)
     # Save the parcellation map
-    out_base_name = f'parcellation_map_{datetime.now().strftime('%Y%m%d_%H%M%S')}'
+    out_base_name = f'parcellation_map_{subject_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     # Ensure the output directory exists
     os.makedirs(outdir_parcel, exist_ok=True)
     nii_img = nib.Nifti1Image(labels, affine=original_affine)
     nib.save(nii_img, os.path.join(outdir_parcel, out_base_name + '.nii'))
     print('Parcellation map saved.')
     print('Done.')
+    # TODO code for loading Specify the path to the NIfTI file you want to load
+    # file_path = os.path.join(outdir_parcel, '...nii')
+    # nii_img = nib.load(file_path)
+    # parcellation_map = nii_img.get_fdata()
+    # original_affine = nii_img.affine
+    
+    
     
     # TODO :OPTINAL : create a boundary map
     # from gradient_magnitude_map import create_boundary_maps
@@ -133,12 +138,16 @@ def compute_and_save_singlesub(subject_id: str,
     # print('boundary map saved.')
     return None
 
-def main(fmri_file, roi_file, mask_file, output_folder):
+def main(fmri_file, 
+         roi_file, 
+         mask_file, 
+         output_dir):
     
-    outdir_grad_map = output_folder + 'grad_maps'
-    outdir_sim_mtrx = output_folder + 'sim_mtrx'
-    outdir_parcel = output_folder + 'parcels'
-    
+    # Output file path
+    subject_id = r'S04'
+    outdir_grad_map = output_dir + r'/outputs/edge_map'
+    outdir_sim_mtrx = output_dir + r'/outputs/sim_mtrx'
+    outdir_parcel =   output_dir + r'/outputs/parcels'
     compute_and_save_singlesub(subject_id,
                                 fmri_file,
                                 roi_file,
@@ -153,31 +162,21 @@ def main(fmri_file, roi_file, mask_file, output_folder):
 if __name__ == '__main__':
     """The path are hard coded for now, but they can be changed to be given as input arguments.
     """
-    subject_id = 'S02'
     # Input files path
-    path_fmri = "G:/HCP/func/rfMRI_REST1_LR.nii.gz"
-    path_roi = 'G:/RSFC/ROI_data/ROI_postcentral.nii'
-    path_mask = 'G:/RSFC/ROI_data/MASK_wholebrain.nii'
-    
-    path_roi = r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\ROI_postcentral.nii'
-    path_mask =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\ROI\MASK_wholebrain.nii'
-    path_fmri =  r'C:\Users\Robin\Documents\1_EPFL\PDMe\data\HCP\100307\MNINonLinear\Results\rfMRI_REST1_LR\rfMRI_REST1_LR_Atlas_hp2000_clean.dtseries.nii'
-    
+    fmri_path = r'G:/DATA_min_preproc/dataset_study1/S04/wsraPPS-FACE_S04_005_Rest.nii' # fMRI data
+    roi_mask_path = r'G:/MASK_standard/gm_postcentral_mask.nii' # Extraction of the grey matter in S1
+    brain_mask_path = r'G:/MASK_standard/MNI152_T1_2mm_brain_mask.nii' # Whole brain mask MNI152 
     # Output file path
-    outdir_grad_map ='/outputs/grad_maps'
-    outdir_sim_mtrx = '/outputs/sim_mtrx'
-    outdir_parcel = '/outputs/parcels'
-
+    output_dir = r'G:/DATA_min_preproc/dataset_study1/S04/'
 #%%
     # Extract data and affine transformation matrix
-    compute_and_save_singlesub(subject_id,
-                                path_fmri,
-                                path_roi,
-                                path_mask,
-                                outdir_grad_map,
-                                outdir_sim_mtrx,
-                                outdir_parcel)
+    main(fmri_path,
+        roi_mask_path,
+        brain_mask_path,
+        output_dir)
 
 
 
 
+
+# %%

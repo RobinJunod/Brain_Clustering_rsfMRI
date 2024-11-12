@@ -7,9 +7,9 @@ from toolbox_parcellation import pca, corr, eta2
 
 
 def fingerprint_simmatrix_in_ROI(fmri_data: np.ndarray,
-                                    roi_data: np.ndarray,
-                                    mask_data: np.ndarray,
-                                    save_simmatrix=True) -> np.ndarray:
+                                roi_data: np.ndarray,
+                                mask_data: np.ndarray,
+                                save_simmatrix=True) -> np.ndarray:
     
     """Compute the similarity matrix for fMRI data based on connectivity fingerprints"""
     #TODO : VERIFY IF THIS APPROCHES ONLY MAKES ONE CORRELATION MATRIX OR DOES IT MAKE THE 
