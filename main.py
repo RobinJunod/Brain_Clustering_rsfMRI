@@ -140,11 +140,11 @@ def compute_and_save_singlesub(subject_id: str,
 
 def main(fmri_file, 
          roi_file, 
-         mask_file, 
+         mask_file,
+         subject_id, 
          output_dir):
     
     # Output file path
-    subject_id = r'S04'
     outdir_grad_map = output_dir + r'/outputs/edge_map'
     outdir_sim_mtrx = output_dir + r'/outputs/sim_mtrx'
     outdir_parcel =   output_dir + r'/outputs/parcels'
@@ -158,25 +158,31 @@ def main(fmri_file,
     
     return None
 
-
+#%%
 if __name__ == '__main__':
     """The path are hard coded for now, but they can be changed to be given as input arguments.
     """
-    # Input files path
-    fmri_path = r'G:/DATA_min_preproc/dataset_study1/S04/wsraPPS-FACE_S04_005_Rest.nii' # fMRI data
-    roi_mask_path = r'G:/MASK_standard/gm_postcentral_mask.nii' # Extraction of the grey matter in S1
-    brain_mask_path = r'G:/MASK_standard/MNI152_T1_2mm_brain_mask.nii' # Whole brain mask MNI152 
-    # Output file path
-    output_dir = r'G:/DATA_min_preproc/dataset_study1/S04/'
-#%%
-    # Extract data and affine transformation matrix
-    main(fmri_path,
-        roi_mask_path,
-        brain_mask_path,
-        output_dir)
+    for i in range(10,21):
+        # Input files path
+        if i == 1:
+            fmri_path = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/func/rwsraOB_TD_FBI_S{i:02d}_007_Rest.nii'
+        else:
+            fmri_path = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/func/rwsraOB_TD_FBI_S{i:02d}_006_Rest.nii' # fMRI data
+        roi_mask_path = f'G:/MASK_standard/gm_postcentral_mask.nii' # Extraction of the grey matter in S1
+        brain_mask_path = f'G:/MASK_standard/MNI152_T1_2mm_brain_mask.nii' # Whole brain mask MNI152 
+        # Output file path
+        output_dir = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/'
 
-
-
-
+        # Extract data and affine transformation matrix
+        main(fmri_path,
+            roi_mask_path,
+            brain_mask_path,
+            f'S{i}',
+            output_dir)
 
 # %%
+outdir_parcel = 'G:/DATA_min_preproc/dataset_study1/S04/outputs/parcels'
+file_path = os.path.join(outdir_parcel, 'parcellation_map_S04_20241112_210105.nii')
+nii_img = nib.load(file_path)
+parcellation_map = nii_img.get_fdata()
+original_affine = nii_img.affine
