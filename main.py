@@ -138,6 +138,41 @@ def compute_and_save_singlesub(subject_id: str,
     # print('boundary map saved.')
     return None
 
+def across_subjects_gradient():
+    sum_grad_map = None
+    for i in range(1,21):
+        # Input files path
+        if i == 9 or i==6:
+            continue
+        # Output file path
+        output_dir = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/outputs/edge_map/'
+        file_list = glob.glob(output_dir + '*.nii')
+        file_path = file_list[0]
+        # Load the data in np.array
+        nii_img = nib.load(file_path)
+        grad_map = nii_img.get_fdata()
+        # Initialize the sum_grad_map with the shape of grad_map
+        if sum_grad_map is None:
+            sum_grad_map = np.zeros_like(grad_map, dtype=np.float64)
+            original_affine = nii_img.affine
+        else:
+            # Check if the shape matches
+            if grad_map.shape != sum_grad_map.shape:
+                print(f"Shape mismatch for file {file_path}. Skipping this file.")
+                continue
+            if not ((original_affine == nii_img.affine).all()):
+                print('cata')
+    # Add the current grad_map to the sum
+    sum_grad_map += grad_map
+    # Save results
+    output_dir = f'G:/DATA_min_preproc/dataset_study2/'
+    out_base_name = f'dataset2_sum_edge_map_{datetime.now().strftime("%Y%m%d_%H%M%S")}'
+    # Create a NIfTI image using nibabel
+    nii_img = nib.Nifti1Image(sum_grad_map, affine=original_affine)
+    nib.save(nii_img, os.path.join(output_dir, out_base_name + '.nii'))
+    print('summed edge map saved')
+
+
 def main(fmri_file, 
          roi_file, 
          mask_file,
@@ -186,3 +221,26 @@ file_path = os.path.join(outdir_parcel, 'parcellation_map_S04_20241112_210105.ni
 nii_img = nib.load(file_path)
 parcellation_map = nii_img.get_fdata()
 original_affine = nii_img.affine
+
+
+#%% Add all the gradient maps 
+import glob
+import numpy as np
+
+
+
+for i in range(1,21):
+    # Input files path
+    if i == 9:
+        continue
+
+    # Output file path
+    output_dir = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/'
+    file_list = glob.glob(output_dir + 'mean_edge_map*.nii')
+    edge_map_path = os.path.join(output_dir, f'outputs/edge_map/{file_list[0]}')
+    
+    img = nib.load(file_name)
+    data = img.get_fdata()
+    print(f"Loaded data shape: {data.shape}")
+    
+# %%
