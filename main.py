@@ -207,7 +207,6 @@ if __name__ == '__main__':
         brain_mask_path = f'G:/MASK_standard/MNI152_T1_2mm_brain_mask.nii' # Whole brain mask MNI152 
         # Output file path
         output_dir = f'G:/DATA_min_preproc/dataset_study2/sub-{i:02d}/'
-
         # Extract data and affine transformation matrix
         main(fmri_path,
             roi_mask_path,
