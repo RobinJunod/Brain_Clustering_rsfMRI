@@ -8,7 +8,7 @@ THE BASELINE METHOD IS THE WIG 2014 METHOD
 @myspace 2024-2025 EPFL
 contact : robin.junod@epfl.ch
 """
-
+# modified by Robin Junod
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
