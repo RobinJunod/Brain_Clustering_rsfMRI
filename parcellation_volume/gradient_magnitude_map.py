@@ -392,8 +392,8 @@ if __name__ == '__main__':
     # _, _, _, original_affine = extract_nii_files(fmri_path, roi_mask_path, brain_mask_path, output_dir)
 
     # Ensure the output directory exists
-    os.makedirs(outdir_grad_map, exist_ok=True)
-    nii_img = nib.Nifti1Image(edge_map, affine=original_affine)
-    nib.save(nii_img, os.path.join(outdir_grad_map, out_base_name + '.nii'))# %%
+    # os.makedirs(outdir_grad_map, exist_ok=True)
+    # nii_img = nib.Nifti1Image(edge_map, affine=original_affine)
+    # nib.save(nii_img, os.path.join(outdir_grad_map, out_base_name + '.nii'))# %%
 
 # %%
