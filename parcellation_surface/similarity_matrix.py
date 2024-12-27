@@ -13,7 +13,6 @@ Inputs :
 - mask data in volume space
 
 output : a similartiy matrix of shape (n, n) where n is the number of vertices in the surface
-
 """
 
 # Paths
@@ -78,7 +77,7 @@ def build_mesh_graph(faces):
     
     faces: ndarray of shape (n_faces, 3)
     
-    Returns:
+    Returns:nnew
         graph: networkx.Graph object
     """
     graph = nx.Graph()
@@ -141,13 +140,12 @@ def non_maxima_suppression(gradient_map, graph, min_neighbors=2):
     return edge_map
 
 
-#%% Compute the correlation with the whole frmi data
 
 
 
 
 if __name__ == "__main__":
-    
+    from gradient import smooth_surface_stat_map
     preproc_vol_fmri_img, resampled_mask_img = preprocess_volume_data(path_func,
                                                                   path_brain_mask)
 
