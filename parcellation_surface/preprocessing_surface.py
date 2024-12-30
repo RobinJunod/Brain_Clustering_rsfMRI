@@ -12,31 +12,32 @@ Then reduce the number of vertex with mris_remesh
 
 """
 #%%
+import os
 import numpy as np
 import nibabel as nib
-from nilearn import surface, plotting
-from scipy.ndimage import gaussian_filter
+from datetime import datetime
+from nilearn import surface
 from nilearn.image import resample_img
 
 # Paths
 SUBJECT = r"01"
 
-subj_dir = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
+SUBJ_DIR = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
+path_func = SUBJ_DIR + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
 
-path_midthickness_r = subj_dir + r"\func\rh.midthickness.32k.surf.gii"
-path_midthickness_l = subj_dir + r"\func\lh.midthickness.32k.surf.gii"
+path_midthickness_r = SUBJ_DIR + r"\func\rh.midthickness.32k.surf.gii"
+path_midthickness_l = SUBJ_DIR + r"\func\lh.midthickness.32k.surf.gii"
 
-path_white_r = subj_dir + r"\func\rh.white.32k.surf.gii"
-path_white_l = subj_dir + r"\func\lh.white.32k.surf.gii"
+path_white_r = SUBJ_DIR + r"\func\rh.white.32k.surf.gii"
+path_white_l = SUBJ_DIR + r"\func\lh.white.32k.surf.gii"
 
-path_pial_r = subj_dir + r"\func\rh.pial.32k.surf.gii"
-path_pial_l = subj_dir + r"\func\lh.pial.32k.surf.gii"
+path_pial_r = SUBJ_DIR + r"\func\rh.pial.32k.surf.gii"
+path_pial_l = SUBJ_DIR + r"\func\lh.pial.32k.surf.gii"
 
-path_brain_mask = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
+path_brain_mask = SUBJ_DIR + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
 
 
-def preprocess_volume_data(path_func, path_brain_mask):
+def load_volume_data(path_func, path_brain_mask):
     """
     Preprocess the volume data
     """
@@ -61,7 +62,7 @@ def preprocess_volume_data(path_func, path_brain_mask):
                                         header=resampled_mask_img.header)
 
     # Save the resampled mask
-    resampled_mask_img.to_filename(subj_dir + r"\anat\resampled_brain_mask.nii.gz")
+    resampled_mask_img.to_filename(SUBJ_DIR + r"\anat\resampled_brain_mask.nii.gz")
 
     # Normalize the time series of the volume data inside the mask
     vol_fmri_masked_ = vol_fmri[resampled_mask]
@@ -76,11 +77,59 @@ def preprocess_volume_data(path_func, path_brain_mask):
     # plotting.view_img(resampled_mask_img, 
     #                 bg_img=mean_fmri_img)
     
-    return vol_fmri_img, resampled_mask_img
+    return vol_fmri_img, resampled_mask_img, affine_vol_fmri
 
 
+def downsample_volume_fmri(vol_fmri_img):
+    """This part is made to reduce the number of vortex of the volume data to the number of vortex of the surface data.
+    It will select only the vortex with a good signal to noise 
+    Args:
+        vol_fmri_img (_type_): _description_
+    """
+    vol_fmri = vol_fmri_img.get_fdata()
+    # Create a mask 
+    # Volume spatial smoothing nibabel
+    # vol_fmri_img_smooth = (vol_fmri_img, fwhm=6)
+    # Remove the vortex with a low signal to noise ratio
+    
+    # Select few vortex within the volume data
+    
+    return None
 
 
+def fmri_to_spatial_modes(vol_fmri_img, 
+                          resampled_mask_img,
+                          n_modes=10_000):
+
+    """
+    Converts fMRI volume images to spatial modes using Singular Value Decomposition (SVD).
+
+    Args:
+        vol_fmri_img (Nifti1Image): 4D fMRI volume image.
+        resampled_mask_img (Nifti1Image): 3D resampled mask image.
+
+    Returns:
+        numpy.ndarray: 2D array of spatial modes.
+    """
+    from scipy.linalg import svd
+    mask = resampled_mask_img.get_fdata()
+    mask_idx = np.where(mask)
+    fmri = vol_fmri_img.get_fdata()
+    # Create the spatial modes
+    fmri_masked = fmri[mask_idx]
+    # keep the voxel with more 50% of the variance 
+    
+    fmri_m_normalized = (fmri_masked - np.mean(fmri_masked, axis=1, keepdims=True)) / np.std(fmri_masked, axis=1, keepdims=True)
+    keep = ~np.isnan(fmri_m_normalized).any(axis=1) & ~np.isinf(fmri_m_normalized).any(axis=1)
+    fmri_m_normalized = fmri_m_normalized[keep]
+    # The principal components are the eigenvectors of S = X'*X./(n-1), but computed using SVD
+    [U,sigma,V] = svd(fmri_m_normalized,full_matrices=False)
+    # Project X onto the principal component axes
+    spatial_modes = U[:n_modes,:]*sigma[:n_modes]
+    
+    return spatial_modes
+    
+    
 def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     """ 
     Get the fmri data into the surface
@@ -103,11 +152,47 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     return surf_fmri_l, surf_fmri_r
 
 
+def save_similartiy_matrix(similarity_matrix, dir_path):
+    """
+    Save the similarity matrix
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = dir_path + f"\similarity_matrix_{time}.npy"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    np.save(path, similarity_matrix)
+
+def load_similarity_matrix(path):
+    """
+    Load the similarity matrix
+    """
+    similarity_matrix = np.load(path)
+    return similarity_matrix
+
+
+def save_gradient_map(gradient_map, dir_path):
+    """
+    Save the gradient map
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = dir_path + f"\gradient_map_{time}.npy"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    np.save(path, gradient_map)
+    
+def load_gradient_map(path):
+    """
+    Load the gradient map
+    """
+    gradient_map = np.load(path)
+    return gradient_map
+
+
+
+
 
 #%% Run the code
 if __name__ == "__main__":
 
-    vol_fmri_img, resampled_mask_img = preprocess_volume_data(path_func, path_brain_mask)
+    vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func, path_brain_mask)
 
     surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r)
 
@@ -115,3 +200,5 @@ if __name__ == "__main__":
                                         
 
 
+
+# %%

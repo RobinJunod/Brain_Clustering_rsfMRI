@@ -4,12 +4,72 @@
 
 #%%
 import numpy as np
+import nibabel as nib
 import networkx as nx
 from scipy.sparse import csr_matrix, coo_matrix
-from similarity_matrix import *
-from preprocessing_surface import *
 
-def compute_gradient_magnitudes( faces, coords, values):
+"""
+2 method for computing the gradient, one is faster using simply 
+the difference between the vertex and its neighbors in a graph. The other
+is more accurate and uses the formula for the gradient of a linear function
+(takes the coords of the vertex).
+"""
+
+def build_mesh_graph(faces):
+    """
+    Build a graph from mesh faces for neighbor lookup.
+    
+    faces: ndarray of shape (n_faces, 3)
+    
+    Returns:nnew
+        graph: networkx.Graph object
+    """
+    graph = nx.Graph()
+    for face in faces:
+        for i in range(3):
+            v1 = face[i]
+            v2 = face[(i + 1) % 3]
+            graph.add_edge(v1, v2)
+    return graph
+
+def compute_gradients(graph, stat_map):
+    """
+    Compute the gradient magnitude at each vertex based on similarity map.
+    
+    stat_map: ndarray of shape (n_vertices,)
+    graph: networkx.Graph object
+    
+    Returns:
+        gradients: ndarray of shape (n_vertices,)
+    """
+    gradients = np.zeros_like(stat_map)
+    for vertex in graph.nodes:
+        neighbors = list(graph.neighbors(vertex))
+        if len(neighbors) == 0:
+            continue
+        # Compute the difference between the vertex and its neighbors
+        differences = stat_map[neighbors] - stat_map[vertex]
+        gradients[vertex] = np.sqrt(np.sum(differences ** 2))
+    return gradients
+
+
+
+
+def compute_full_gradient_map(faces, similarity_matrix):
+    graph = build_mesh_graph(faces)
+    smoothed_sim_matrix = smooth_similarity_matrix_graph(graph, similarity_matrix)
+    n_vertex = len(smoothed_sim_matrix.shape[0])
+    for i in range(n_vertex):
+        gradient = compute_gradients(smoothed_sim_matrix[i], graph)
+        if i == 0:
+            gradient_map = gradient
+        else:
+            gradient_map = np.vstack((gradient_map, gradient))
+            
+    return gradient_map
+
+
+def compute_gradient_magnitudes(faces, coords, values):
     """
     Compute per-vertex gradient magnitudes of a scalar field on a triangular mesh.
 
@@ -179,194 +239,244 @@ def smooth_surface_stat_map(faces, coords, values, iterations=2):
     
     return smoothed_map
 
-
-def save_surface_map(coords, faces, values, output_path):
+def smooth_surface_graph(
+    graph: nx.Graph,
+    values: np.ndarray,
+    iterations: int = 2
+) -> np.ndarray:
     """
-    Save a scalar map on a surface mesh to a GIFTI file.
-    
-    Parameters:
-    ----------
-    coords : array_like, shape (n_vertices, 3)
-        3D coordinates of each vertex in the mesh.
-        
-    faces : array_like, shape (n_faces, 3)
-        Indices of vertices forming each triangular face of the mesh.
-        
-    values : array_like, shape (n_vertices,)
-        Scalar values to save on the mesh.
-        
-    output_path : str
-        Path to save the GIFTI file.
-        
-    Notes:
-    -----
-    - The function creates a GIFTI file with the specified scalar values on the mesh.
-    - The output file can be visualized using tools like Connectome Workbench or MRICloud.
-    """
-    
-    # Ensure inputs are numpy arrays
-    coords = np.asarray(coords)
-    faces = np.asarray(faces)
-    values = np.asarray(values)
-    
-    # Create a GIFTI image
-    gii = nib.gifti.GiftiImage()
-    
-    # Add the coordinates
-    gii.add_gifti_data_array(nib.gifti.GiftiDataArray(coords))
-    
-    # Add the faces
-    gii.add_gifti_data_array(nib.gifti.GiftiDataArray(faces))
-    
-    # Add the scalar values
-    gii.add_gifti_data_array(nib.gifti.GiftiDataArray(values))
-    
-    # Save the GIFTI image
-    nib.save(gii, output_path)
+    Smooth a surface-based fMRI statistical map using a NetworkX graph for neighborhood averaging.
 
-
-
-
-
-
-
-from nibabel.cifti2 import (
-    Cifti2Image,
-    Cifti2Matrix,
-    Cifti2MatrixIndicesMap,
-    Cifti2BrainModel
-)
-import nibabel as nb
-import nibabel.cifti2 as ci
-def save_lh_corr_as_dconn(corr_matrix, output_dconn, structure='CIFTI_STRUCTURE_CORTEX_LEFT'):
-    """
-    Save an (N x N) correlation matrix to a .dconn.nii for the LEFT hemisphere.
-    Compatible with older NiBabel versions where 'Cifti2MatrixIndicesMap' 
-    must be called with positional arguments.
-    
     Parameters
     ----------
-    corr_matrix : (N, N) ndarray
-        Correlation (or connectivity) matrix.
-    output_dconn : str
-        Output .dconn.nii filename.
-    structure : str
-        Brain structure name (defaults to CIFTI_STRUCTURE_CORTEX_LEFT).
+    graph : networkx.Graph
+        A NetworkX graph where nodes represent vertices and edges represent adjacency.
+    values : numpy.ndarray, shape (n_vertices,)
+        Statistical values (e.g., t-scores, z-scores) associated with each vertex.
+    iterations : int, optional (default=2)
+        Number of smoothing iterations to perform.
+
+    Returns
+    -------
+    smoothed_map : numpy.ndarray, shape (n_vertices,)
+        Smoothed statistical values on the surface mesh.
+
+    Raises
+    ------
+    ValueError
+        If the number of nodes in the graph does not match the length of `values`.
+
+    Notes
+    -----
+    - This function performs smoothing by averaging each vertex's value with its immediate neighbors.
+    - Increasing the number of iterations results in more extensive smoothing.
+    - The function leverages sparse matrix operations for efficiency.
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> import networkx as nx
+    >>> # Create a simple graph with 4 nodes
+    >>> G = nx.Graph()
+    >>> G.add_edges_from([(0, 1), (0, 2), (2, 3)])
+    >>> values = np.array([1.0, 2.0, 3.0, 4.0])
+    >>> smoothed = smooth_surface_graph(G, values, iterations=1)
+    >>> print(smoothed)
+    [2.5 2.  2.33333333 2.0]
     """
-    N = corr_matrix.shape[0]
-    assert corr_matrix.shape == (N, N), "Matrix must be NxN."
-
-    # 1) Create top-level Cifti2Matrix container
-    cifti_matrix = ci.Cifti2Matrix()
-
-    # 2) Create ROW dimension map => BRAIN_MODELS
-    # In older NiBabel, you pass:
-    #   - the map type as the 1st positional argument
-    #   - the dimension list as the 2nd positional argument
-    #   - then named_maps/brain_models as keyword args
-    row_bm = ci.Cifti2BrainModel(
-        index_offset=0,
-        index_count=N,
-        model_type='CIFTI_MODEL_TYPE_SURFACE',
-        n_surface_vertices=N,
-        brain_structure=structure
-    )
-    row_map = ci.Cifti2MatrixIndicesMap(
-        'CIFTI_INDEX_TYPE_BRAIN_MODELS',     # map type
-        [0],                                 # applies_to_matrix_dimension = rows
-        brain_models=[row_bm]               # attach the BrainModel list
-    )
-
-    # 3) Create COLUMN dimension map => BRAIN_MODELS
-    col_bm = ci.Cifti2BrainModel(
-        index_offset=0,
-        index_count=N,
-        model_type='CIFTI_MODEL_TYPE_SURFACE',
-        surface_number_of_vertices=N,
-        brain_structure=structure
-    )
-    col_map = ci.Cifti2MatrixIndicesMap(
-        'CIFTI_INDEX_TYPE_BRAIN_MODELS',     # map type
-        [1],                                 # applies_to_matrix_dimension = columns
-        brain_models=[col_bm]
-    )
-
-    # 4) Add row_map and col_map to the main matrix
-    cifti_matrix.extend([row_map, col_map])
-
-    # 5) Create the Cifti2Image with your NxN data
-    img = ci.Cifti2Image(dataobj=corr_matrix, header=cifti_matrix)
-
-    # 6) Save
-    img.to_filename(output_dconn)
-    print(f"Saved {N}x{N} LH correlation matrix to {output_dconn}")
+    # Validate inputs
+    if not isinstance(graph, nx.Graph):
+        raise TypeError("`graph` must be a NetworkX Graph or DiGraph object.")
     
-    
-    
+    n_vertices = len(graph)
+    if n_vertices != len(values):
+        raise ValueError("The number of nodes in the graph must match the length of `values`.")
+
+    # Ensure the graph is undirected for symmetric adjacency
+    if graph.is_directed():
+        graph = graph.to_undirected()
+
+    # Relabel nodes to ensure they are in the range [0, n_vertices-1]
+    # This is important for constructing the adjacency matrix correctly
+    mapping = {node: idx for idx, node in enumerate(graph.nodes())}
+    graph = nx.relabel_nodes(graph, mapping)
+
+    # Construct the adjacency matrix in CSR format
+    adjacency_matrix = nx.to_scipy_sparse_array(
+        graph, format='csr', dtype=np.float32, 
+        nodelist=range(n_vertices)
+    )
+
+    # Compute the degree of each vertex
+    degree = adjacency_matrix.sum(axis=1)  # Convert to 1D array
+    degree[degree == 0] = 1  # Prevent division by zero
+
+    # Create the normalization matrix (W = D^-1)
+    W = csr_matrix(
+        (1.0 / degree, (np.arange(n_vertices), np.arange(n_vertices))),
+        shape=(n_vertices, n_vertices)
+    )
+
+    # Define the smoothing operator (W * adjacency)
+    smoothing_operator = W.dot(adjacency_matrix)
+
+    # Initialize smoothed_map
+    smoothed_map = values.copy()
+
+    # Perform iterative smoothing
+    for _ in range(iterations):
+        smoothed_map = smoothing_operator.dot(smoothed_map)
+
+    return smoothed_map
+
+
+
+from nibabel.gifti import GiftiImage, GiftiDataArray
+def save_coords_faces_values_to_gii(coords, faces, values, out_gii):
+    """
+    Save surface geometry (coords & faces) and per-vertex 'values'
+    into a single GIFTI file (.gii).
+
+    Parameters
+    ----------
+    coords : np.ndarray, shape (n_vertices, 3)
+        Array of x,y,z coordinates for each vertex.
+    faces : np.ndarray, shape (n_faces, 3)
+        Each row has the 3 vertex indices defining one triangle.
+    values : np.ndarray, shape (n_vertices,) or (n_vertices, 1)
+        The per-vertex data you want to store (e.g., stat or shape values).
+    out_gii : str
+        Path to the output GIFTI file, e.g. "my_surf.gii".
+    """
+
+    # Convert data to float32 or int32 as appropriate
+    coords = coords.astype(np.float32)
+    faces  = faces.astype(np.int32)
+    # Ensure values are float32 (typical for surface scalar data)
+    values = values.astype(np.float32)
+
+    # 1) GIFTI array for vertex coordinates
+    coords_darray = GiftiDataArray(
+        data=coords,
+        intent="NIFTI_INTENT_POINTSET"   # Required intent for surface vertices
+    )
+    # 2) GIFTI array for faces
+    faces_darray = GiftiDataArray(
+        data=faces,
+        intent="NIFTI_INTENT_TRIANGLE"   # Required intent for surface faces
+    )
+    # 3) GIFTI array for per-vertex data
+    #    'NIFTI_INTENT_SHAPE' or 'NIFTI_INTENT_NONE' are common choices
+    values_darray = GiftiDataArray(
+        data=values,
+        intent="NIFTI_INTENT_SHAPE"      # Could also be 'NIFTI_INTENT_NONE', etc.
+    )
+
+    # Combine into one GiftiImage
+    gifti_img = GiftiImage(darrays=[coords_darray, faces_darray, values_darray])
+
+    # Save
+    nib.save(gifti_img, out_gii)
+    print(f"Saved GIFTI file with coords, faces, and values: {out_gii}")
+
+
+
+
+
+# Usage:
+# save_gifti_stat_map(sim_map_smoothed, "gradient.func.gii")
+
+
+
 if __name__ == "__main__":
-    SUBJECT = r"01"
-    subj_dir = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-    path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
+    pass
+    
+    
+#%%
 
-    path_midthickness_r = subj_dir + r"\func\rh.midthickness.32k.surf.gii"
-    path_midthickness_l = subj_dir + r"\func\lh.midthickness.32k.surf.gii"
+def build_adjacency(n_vertices, faces):
+    neighbors = [[] for _ in range(n_vertices)]
+    for (i0, i1, i2) in faces:
+        neighbors[i0].append(i1)
+        neighbors[i0].append(i2)
+        neighbors[i1].append(i0)
+        neighbors[i1].append(i2)
+        neighbors[i2].append(i0)
+        neighbors[i2].append(i1)
+    # remove duplicates
+    neighbors = [list(set(nbrs)) for nbrs in neighbors]
+    return neighbors
 
-    path_white_r = subj_dir + r"\func\rh.white.32k.surf.gii"
-    path_white_l = subj_dir + r"\func\lh.white.32k.surf.gii"
+def find_local_minima(values, neighbors):
+    """
+    Return a list of indices of vertices that are local minima.
+    i.e., value[i] < value[nbr] for all nbr in neighbors[i].
+    """
+    minima = []
+    for i, val_i in enumerate(values):
+        is_min = True
+        for nbr in neighbors[i]:
+            if values[nbr] <= val_i:
+                is_min = False
+                break
+        if is_min:
+            minima.append(i)
+    return minima
+import heapq
 
-    path_pial_r = subj_dir + r"\func\rh.pial.32k.surf.gii"
-    path_pial_l = subj_dir + r"\func\lh.pial.32k.surf.gii"
 
-    path_brain_mask = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
-    
-    # Load the surface data
-    surf_l = nib.load(path_midthickness_l)
+def watershed_by_flooding(vertices, faces, values, neighbors=None):
+    """
+    Perform a watershed segmentation on 'values' defined on a surface mesh.
+    Returns:
+        labels : (N,) array of integers, each vertex's basin label
+                 or -2 for boundary vertices, -1 for unassigned.
+    """
+    n_vertices = vertices.shape[0]
+    if neighbors is None:
+        neighbors = build_adjacency(n_vertices, faces)
 
-    coords_l, faces_l = surf_l.darrays[0].data, surf_l.darrays[1].data
-    
-    # Load the volume data
-    preproc_vol_fmri_img, resampled_mask_img = preprocess_volume_data(path_func, path_brain_mask)
-    surf_fmri_l, surf_fmri_r = fmri_vol2surf(preproc_vol_fmri_img, 
-                                            path_midthickness_l, 
-                                            path_midthickness_r)
+    # 1) Find local minima
+    minima_indices = find_local_minima(values, neighbors)
 
-    gii = nib.load(path_midthickness_l)
-    coords = gii.darrays[0].data  # shape: (N_vertices, 3)
-    faces = gii.darrays[1].data   # shape: (N_faces, 3)
-    
-    # Compute the Adjacency matrix from the mesh faces
-    # adjacency_matrix = build_adjacency_matrix(faces, len(coords))
-    
-    #%% Compute the similarity matrix
-    RSFC_matrix = compute_RSFC_matrix(surf_fmri_l)
-    
-    # Smooth the RSFC matrix
-    RSFC_matrix_smoothed = np.zeros_like(RSFC_matrix)
-    for i in range(len(RSFC_matrix)):
-        RSFC_matrix_smoothed[i] = smooth_surface_stat_map(faces, coords, RSFC_matrix[i], iterations=2)
-        
-    smoothed_RSFC_matrix = smooth_surface_stat_map(faces, coords, RSFC_matrix, iterations=2)
-    
-    #%% Compute the gradient map
-    mean_grad = np.zeros_like(coords[:, 0])
-    # for rsfc_map in RSFC_matrix:
-    #     # statmap_grad = compute_gradients(rsfc_map, adjacency_matrix)
-    #     # mean_grad = statmap_grad + mean_grad
-    
-    
-    plotting.plot_surf_stat_map(
-        path_midthickness_l,
-        stat_map=mean_grad,
-        hemi='left',
-        view='lateral',
-        title='Left Hemisphere Frequency Map',
-        colorbar=True,
-        cmap='coolwarm'
-    )
-    # save the gradient map
-    mean_grad_img = nib.gifti.GiftiImage()
-    mean_grad_img.add_gifti_data_array(nib.gifti.GiftiDataArray(data=mean_grad))
-    nib.save(mean_grad_img, subj_dir + r"\outputs\mean_gradient_map.func.gii")
-    
-    
-# %%
+    # labels[i] = which basin index (>=0) or boundary (-2) or unassigned (-1)
+    labels = np.full(n_vertices, -1, dtype=int)
+
+    # 2) Assign each local minimum a unique label
+    for basin_id, idx in enumerate(minima_indices):
+        labels[idx] = basin_id
+
+    # 3) Priority queue (value, vertex_index)
+    pq = []
+    # Initialize queue with local minima
+    for i in minima_indices:
+        heapq.heappush(pq, (values[i], i))
+
+    # 4) Flooding
+    while pq:
+        val_i, i = heapq.heappop(pq)
+        basin_label = labels[i]
+        if basin_label < 0:
+            # It's been changed since the time we pushed it in the queue
+            continue
+        if basin_label == -2:
+            # This is already boundary => do not flood
+            continue
+
+        # Explore neighbors
+        for nbr in neighbors[i]:
+            nbr_label = labels[nbr]
+            if nbr_label == -1:
+                # unassigned => adopt i's basin
+                labels[nbr] = basin_label
+                heapq.heappush(pq, (values[nbr], nbr))
+            elif nbr_label >= 0 and nbr_label != basin_label:
+                # Conflict => boundary
+                labels[i] = -2
+                labels[nbr] = -2
+                # Mark both as boundary => do not expand from them
+                break  # stop flooding from i
+
+    return labels
+
+

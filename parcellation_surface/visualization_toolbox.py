@@ -1,7 +1,5 @@
-
+#%%
 import numpy as np
-
-
 import pyvista as pv
 
 def visualize_brain_scalar(vertices, faces, scalar_values, cmap="viridis"):
@@ -49,3 +47,38 @@ def visualize_brain_scalar(vertices, faces, scalar_values, cmap="viridis"):
         scalar_bar_args={"title": "Gradient Magnitude"},
     )
     plotter.show()
+    
+    
+    
+from nilearn.plotting import view_surf
+
+def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis"):
+    """
+    Visualize scalar data on a triangular mesh using Nilearn.
+
+    Parameters
+    ----------
+    vertices : (N, 3) ndarray
+        3D coordinates of each vertex.
+    faces : (M, 3) ndarray
+        Triangles as vertex indices.
+    scalar_values : (N,) ndarray
+        The scalar (e.g., gradient magnitude) for each vertex.
+    cmap : str
+        Name of the color map (e.g. "viridis", "coolwarm", etc.).
+    """
+
+    # Create a surface mesh
+    surf_mesh = (vertices, faces)
+
+    # Visualize the scalar data on the surface
+    view = view_surf(
+        surf_mesh=surf_mesh,
+        surf_map=scalar_values,
+        cmap=cmap,
+        vmax=np.percentile(scalar_values, 95),
+        bg_map=None,
+        title="Gradient Magnitude",
+    )
+
+    return view
