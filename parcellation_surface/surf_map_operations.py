@@ -32,7 +32,7 @@ def build_mesh_graph(faces):
             graph.add_edge(v1, v2)
     return graph
 
-def compute_gradients(graph, stat_map):
+def compute_gradient(graph, stat_map):
     """
     Compute the gradient magnitude at each vertex based on similarity map.
     
@@ -52,21 +52,56 @@ def compute_gradients(graph, stat_map):
         gradients[vertex] = np.sqrt(np.sum(differences ** 2))
     return gradients
 
+# Non-maxima suppression
+def non_maxima_suppression(graph,
+                           gradient_map,
+                           min_neighbors=4,
+                           threshold=0.7):
+    """
+    Apply non-maxima suppression to identify edge vertices.
+    
+    graph: networkx.Graph object
+    gradient_map: ndarray of shape (n_vertices,)
+    min_neighbors: int, number of non-adjacent maxima required
+    
+    Returns:
+        edge_map: ndarray of shape (n_vertices,), boolean
+    """
+    # The minimum gradient value for a local maximum
+    min_grad_value = np.percentile(gradient_map, 100*threshold)
+    edge_map = np.zeros_like(gradient_map, dtype=bool)
+    for vertex in graph.nodes:
+        neighbors = list(graph.neighbors(vertex))
+        if len(neighbors) < min_neighbors:
+            continue
+        # Check if current vertex is a local maximum
+        is_max = True
+        count = 0
+        for neighbor in neighbors:
+            if gradient_map[vertex] <= gradient_map[neighbor]:
+                is_max = False
+                break
+            count += 1
+            if count >= min_neighbors:
+                break
+        if is_max and count >= min_neighbors and gradient_map[vertex] > min_grad_value:
+            edge_map[vertex] = True
+    return edge_map
 
 
+def compute_full_edge_map(graph, smoothed_similarity_matrix):
+    n_vertex = smoothed_similarity_matrix.shape[0]
+    full_edge_map = np.zeros_like(smoothed_similarity_matrix[0,:]) # Initialize the edge map
+    for i in range(0, n_vertex, 100): # TODO: replace with range(n_vertex) for the final version
+        gradients = compute_gradient(graph, smoothed_similarity_matrix[i,:])
+        # TODO : try to smooth the edge map
+        edge_map = 1*non_maxima_suppression(gradients,
+                                        graph,
+                                        min_neighbors=3)
+        full_edge_map += edge_map
+    return full_edge_map
 
-def compute_full_gradient_map(faces, similarity_matrix):
-    graph = build_mesh_graph(faces)
-    smoothed_sim_matrix = smooth_similarity_matrix_graph(graph, similarity_matrix)
-    n_vertex = len(smoothed_sim_matrix.shape[0])
-    for i in range(n_vertex):
-        gradient = compute_gradients(smoothed_sim_matrix[i], graph)
-        if i == 0:
-            gradient_map = gradient
-        else:
-            gradient_map = np.vstack((gradient_map, gradient))
-            
-    return gradient_map
+
 
 
 def compute_gradient_magnitudes(faces, coords, values):
@@ -148,7 +183,7 @@ def compute_gradient_magnitudes(faces, coords, values):
 
 
 
-def smooth_surface_stat_map(faces, coords, values, iterations=2):
+def smooth_surface(faces, values, iterations=2):
     """
     Smooth a surface-based fMRI statistical map using neighborhood averaging.
     
@@ -195,10 +230,9 @@ def smooth_surface_stat_map(faces, coords, values, iterations=2):
 
     # Ensure inputs are numpy arrays
     faces = np.asarray(faces)
-    coords = np.asarray(coords)
     values = np.asarray(values)
     
-    n_vertices = coords.shape[0]
+    n_vertices = values.shape[0]
     
     # Step 1: Extract unique edges from faces
     edges = set()

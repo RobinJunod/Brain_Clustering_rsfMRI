@@ -80,9 +80,10 @@ def load_volume_data(path_func, path_brain_mask):
     return vol_fmri_img, resampled_mask_img, affine_vol_fmri
 
 
-def downsample_volume_fmri(vol_fmri_img):
-    """This part is made to reduce the number of vortex of the volume data to the number of vortex of the surface data.
-    It will select only the vortex with a good signal to noise 
+def downsample_volume_fmri(vol_fmri_img,
+                           resampled_mask_img):
+    """This part is made to reduce the number of vertex of the volume data.
+    It will select the most important vertex of the volume data.
     Args:
         vol_fmri_img (_type_): _description_
     """
@@ -100,7 +101,6 @@ def downsample_volume_fmri(vol_fmri_img):
 def fmri_to_spatial_modes(vol_fmri_img, 
                           resampled_mask_img,
                           n_modes=10_000):
-
     """
     Converts fMRI volume images to spatial modes using Singular Value Decomposition (SVD).
 
@@ -125,9 +125,9 @@ def fmri_to_spatial_modes(vol_fmri_img,
     # The principal components are the eigenvectors of S = X'*X./(n-1), but computed using SVD
     [U,sigma,V] = svd(fmri_m_normalized,full_matrices=False)
     # Project X onto the principal component axes
-    spatial_modes = U[:n_modes,:]*sigma[:n_modes]
+    # spatial_modes = U[:n_modes,:].T * sigma[:n_modes]
     
-    return spatial_modes
+    return U[:n_modes,:]
     
     
 def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
@@ -152,12 +152,12 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     return surf_fmri_l, surf_fmri_r
 
 
-def save_similartiy_matrix(similarity_matrix, dir_path):
+def save_similartiy_matrix(similarity_matrix, output_dir):
     """
-    Save the similarity matrix
+    Save the similarity matrix (WARNING : not really convinient to save this matrix)
     """
     time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = dir_path + f"\similarity_matrix_{time}.npy"
+    path = output_dir + f"\similarity_matrix_{time}.npy"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.save(path, similarity_matrix)
 
@@ -169,12 +169,12 @@ def load_similarity_matrix(path):
     return similarity_matrix
 
 
-def save_gradient_map(gradient_map, dir_path):
+def save_gradient_map(gradient_map, output_dir):
     """
     Save the gradient map
     """
     time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = dir_path + f"\gradient_map_{time}.npy"
+    path = output_dir + f"\gradient_map_{time}.npy"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.save(path, gradient_map)
     

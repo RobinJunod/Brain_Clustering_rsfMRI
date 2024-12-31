@@ -7,7 +7,7 @@ import networkx as nx
 from preprocessing_surface import load_volume_data, fmri_vol2surf, fmri_to_spatial_modes
 from visualization_toolbox import visualize_brain_surface, visualize_brain_scalar
 from surf_map_operations import compute_gradient_magnitudes, \
-                                smooth_surface_stat_map
+                                smooth_surface
                         
 
 """
@@ -127,7 +127,7 @@ def build_mesh_graph(faces):
             graph.add_edge(v1, v2)
     return graph
 
-def compute_gradients(similarity_map, graph):
+def compute_gradient(graph, stat_map):
     """
     Compute the gradient magnitude at each vertex based on similarity map.
     
@@ -137,13 +137,13 @@ def compute_gradients(similarity_map, graph):
     Returns:
         gradients: ndarray of shape (n_vertices,)
     """
-    gradients = np.zeros_like(similarity_map)
+    gradients = np.zeros_like(stat_map)
     for vertex in graph.nodes:
         neighbors = list(graph.neighbors(vertex))
         if len(neighbors) == 0:
             continue
         # Compute the difference between the vertex and its neighbors
-        differences = similarity_map[neighbors] - similarity_map[vertex]
+        differences = stat_map[neighbors] - stat_map[vertex]
         gradients[vertex] = np.sqrt(np.sum(differences ** 2))
     return gradients
 
@@ -196,6 +196,12 @@ if __name__ == "__main__":
     faces = gii.darrays[1].data   # shape: (N_faces, 3)
     graph = build_mesh_graph(faces)
     
+    path_midthickness_l_inflated = subj_dir + r"\func\lh.midthickness.inflated.32k.surf.gii"
+    gii_inflated = nib.load(path_midthickness_l_inflated)
+    coords_inflated = gii.darrays[0].data  # shape: (N_vertices, 3)
+    faces_inflated = gii.darrays[1].data   # shape: (N_faces, 3)
+    
+
     #%% Compute the similarity matrix
     # RSFC_matrix = compute_RSFC_matrix(surf_fmri_l)
     similarity_matrix = compute_similarity_matrix(surf_fmri_l, 
@@ -205,23 +211,18 @@ if __name__ == "__main__":
     sim_map = similarity_matrix[34,:]
     visualize_brain_surface(coords, faces, sim_map)
     # sim_matrx = compute_similarity_matrix(RSFC_matrix) # maybe redundant
-    #%% plot the similarity map
-    # Smooth the similarity map
-    # plotting.plot_surf_stat_map(
-    #     path_midthickness_l,
-    #     stat_map=sim_map,
-    #     hemi='left',
-    #     view='lateral',
-    #     title='sim_map',
-    #     colorbar=True,
-    #     cmap='coolwarm'
-    # )
+    # Visualize inflated surface sim map
+    # path_midthickness_l_inflated = subj_dir + r"\func\lh.midthickness.inflated.32k.surf.gii"
+    # gii_inflated = nib.load(path_midthickness_l_inflated)
+    # coords_inflated = gii_inflated.darrays[0].data  # shape: (N_vertices, 3)
+    # faces_inflated = gii_inflated.darrays[1].data   # shape: (N_faces, 3)
+    # visualize_brain_surface(coords_inflated, faces_inflated, sim_map)
+
     #%% plot the smoothed similarity map
-    sim_map_smooothed = smooth_surface_stat_map(faces,
-                                                coords,
-                                                sim_map, 
-                                                iterations=3)
-    visualize_brain_surface(coords, faces, sim_map_smooothed)
+    sim_matrix_smooothed = smooth_surface(faces,
+                                        similarity_matrix, 
+                                        iterations=3)
+    visualize_brain_surface(coords, faces, sim_matrix_smooothed[32,:])
     #%% plotting.plot_surf_stat_map(
     #     path_midthickness_l,
     #     stat_map=sim_map_smooothed,
@@ -232,7 +233,7 @@ if __name__ == "__main__":
     #     cmap='coolwarm'
     # )
     #%% plot the gradient map
-    gradients = compute_gradients(sim_map_smooothed, graph)
+    gradients = compute_gradient(sim_matrix_smooothed[34,:], graph)
     visualize_brain_surface(coords, faces, gradients)
     
     #%% plotting.plot_surf_stat_map(
@@ -277,7 +278,7 @@ if __name__ == "__main__":
 
 
 
-gradients = compute_gradients(similarity_matrix[12,:], graph)
+gradients = compute_gradient(similarity_matrix[12,:], graph)
 
 
 edge_map_ = non_maxima_suppression(gradients,
@@ -288,11 +289,10 @@ edge_map_ = edge_map_*1
 
 edge_map = np.zeros_like(edge_map_)
 for i in range(200):
-    smoothed_map = smooth_surface_stat_map(faces,
-                                        coords,
-                                        similarity_matrix[100*i,:], 
-                                        iterations=3)
-    gradients = compute_gradients(similarity_matrix[100*i,:], graph)
+    smoothed_map = smooth_surface(faces,
+                                similarity_matrix[100*i,:], 
+                                iterations=3)
+    gradients = compute_gradient(similarity_matrix[100*i,:], graph)
     edge_map_ = non_maxima_suppression(gradients,
                                       graph,
                                       min_neighbors=3)
