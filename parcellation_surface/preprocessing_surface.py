@@ -36,6 +36,7 @@ path_pial_l = SUBJ_DIR + r"\func\lh.pial.32k.surf.gii"
 
 path_brain_mask = SUBJ_DIR + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
 
+path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.surf.gii"
 
 def load_volume_data(path_func, path_brain_mask):
     """
@@ -87,15 +88,7 @@ def downsample_volume_fmri(vol_fmri_img,
     Args:
         vol_fmri_img (_type_): _description_
     """
-    vol_fmri = vol_fmri_img.get_fdata()
-    # Create a mask 
-    # Volume spatial smoothing nibabel
-    # vol_fmri_img_smooth = (vol_fmri_img, fwhm=6)
-    # Remove the vortex with a low signal to noise ratio
-    
-    # Select few vortex within the volume data
-    
-    return None
+    pass
 
 
 def fmri_to_spatial_modes(vol_fmri_img, 

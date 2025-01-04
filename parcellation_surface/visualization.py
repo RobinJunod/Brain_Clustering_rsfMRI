@@ -2,7 +2,7 @@
 import numpy as np
 from nilearn.plotting import view_surf
 
-def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis"):
+def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis", threshold=0):
     """
     Visualize scalar data on a triangular mesh using Nilearn.
 
@@ -17,9 +17,9 @@ def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis"):
     cmap : str
         Name of the color map (e.g. "viridis", "coolwarm", etc.).
     """
-
     # Create a surface mesh
     surf_mesh = (vertices, faces)
+    high_threshold = np.percentile(scalar_values, threshold)
 
     # Visualize the scalar data on the surface
     view = view_surf(
@@ -27,7 +27,8 @@ def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis"):
         surf_map=scalar_values,
         cmap=cmap,
         bg_map=None,
-        title="Gradient Magnitude",
+        threshold=high_threshold,
+        title="Statistical map on surface",
     )
 
     return view

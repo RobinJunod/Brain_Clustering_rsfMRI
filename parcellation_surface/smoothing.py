@@ -14,175 +14,6 @@ the difference between the vertex and its neighbors in a graph. The other
 is more accurate and uses the formula for the gradient of a linear function
 (takes the coords of the vertex).
 """
-
-def build_mesh_graph(faces):
-    """
-    Build a graph from mesh faces for neighbor lookup.
-    
-    faces: ndarray of shape (n_faces, 3)
-    
-    Returns:nnew
-        graph: networkx.Graph object
-    """
-    graph = nx.Graph()
-    for face in faces:
-        for i in range(3):
-            v1 = face[i]
-            v2 = face[(i + 1) % 3]
-            graph.add_edge(v1, v2)
-    return graph
-
-def compute_gradient(graph, stat_map):
-    """
-    Compute the gradient magnitude at each vertex based on similarity map.
-    
-    stat_map: ndarray of shape (n_vertices,)
-    graph: networkx.Graph object
-    
-    Returns:
-        gradients: ndarray of shape (n_vertices,)
-    """
-    gradients = np.zeros_like(stat_map)
-    for vertex in graph.nodes:
-        neighbors = list(graph.neighbors(vertex))
-        if len(neighbors) == 0:
-            continue
-        # Compute the difference between the vertex and its neighbors
-        differences = stat_map[neighbors] - stat_map[vertex]
-        gradients[vertex] = np.sqrt(np.sum(differences ** 2))
-    return gradients
-
-# Non-maxima suppression
-def non_maxima_suppression(graph,
-                           gradient_map,
-                           min_neighbors=4,
-                           threshold=0.7):
-    """
-    Apply non-maxima suppression to identify edge vertices.
-    
-    graph: networkx.Graph object
-    gradient_map: ndarray of shape (n_vertices,)
-    min_neighbors: int, number of non-adjacent maxima required
-    
-    Returns:
-        edge_map: ndarray of shape (n_vertices,), boolean
-    """
-    # The minimum gradient value for a local maximum
-    min_grad_value = np.percentile(gradient_map, 100*threshold)
-    edge_map = np.zeros_like(gradient_map, dtype=bool)
-    for vertex in graph.nodes:
-        neighbors = list(graph.neighbors(vertex))
-        if len(neighbors) < min_neighbors:
-            continue
-        # Check if current vertex is a local maximum
-        is_max = True
-        count = 0
-        for neighbor in neighbors:
-            if gradient_map[vertex] <= gradient_map[neighbor]:
-                is_max = False
-                break
-            count += 1
-            if count >= min_neighbors:
-                break
-        if is_max and count >= min_neighbors and gradient_map[vertex] > min_grad_value:
-            edge_map[vertex] = True
-    return edge_map
-
-
-def compute_full_edge_map(graph, smoothed_similarity_matrix):
-    n_vertex = smoothed_similarity_matrix.shape[0]
-    full_edge_map = np.zeros_like(smoothed_similarity_matrix[0,:]) # Initialize the edge map
-    for i in range(0, n_vertex, 100): # TODO: replace with range(n_vertex) for the final version
-        gradients = compute_gradient(graph, smoothed_similarity_matrix[i,:])
-        # TODO : try to smooth the edge map
-        edge_map = 1*non_maxima_suppression(gradients,
-                                        graph,
-                                        min_neighbors=3)
-        full_edge_map += edge_map
-    return full_edge_map
-
-
-
-
-def compute_gradient_magnitudes(faces, coords, values):
-    """
-    Compute per-vertex gradient magnitudes of a scalar field on a triangular mesh.
-
-    Parameters
-    ----------
-    coords : np.ndarray, shape (n_coords, 3)
-        3D coordinates of each vertex.
-    faces : np.ndarray, shape (n_faces, 3)
-        Triangle faces, each a triplet of vertex indices.
-    values : np.ndarray, shape (n_coords,)
-        Scalar value (e.g. similarity) at each vertex.
-
-    Returns
-    -------
-    grad_magnitudes : np.ndarray, shape (n_coords,)
-        The magnitude of the spatial gradient at each vertex.
-    """
-
-    n_vertices = coords.shape[0]
-    
-    # Accumulators for gradients at each vertex
-    grad_accum = np.zeros((n_vertices, 3), dtype=np.float64)
-    face_count = np.zeros(n_vertices, dtype=np.int32)
-
-    for face in faces:
-        i0, i1, i2 = face
-        x0, x1, x2 = coords[i0], coords[i1], coords[i2]
-        
-        f0, f1, f2 = values[i0], values[i1], values[i2]
-        
-        # Edges of the triangle
-        e1 = x1 - x0
-        e2 = x2 - x0
-        
-        # Face normal and area
-        n = np.cross(e1, e2)
-        area = 0.5 * np.linalg.norm(n)
-        
-        if area < 1e-12:
-            # Degenerate face (very small area) - skip to avoid division by zero
-            continue
-
-        # Compute gradient on this face in 3D
-        # (d1, d2) = (f1 - f0, f2 - f0)
-        d1 = f1 - f0
-        d2 = f2 - f0
-
-        # Formula for gradient of a linear function on a triangle in 3D
-        # grad_face = ( d1 * (n x e2) + d2 * (e1 x n ) ) / (2 * area * ||n|| ) * ||n|| 
-        # Simplifies to: 
-        grad_face = ((d1 * np.cross(n, e2)) + (d2 * np.cross(e1, n))) / (2.0 * area * np.linalg.norm(n)) * np.linalg.norm(n)
-        #
-        # But we can fold the norm(n) in or out in different ways. An equivalent simpler formula is:
-        # grad_face = ( d1 * cross(n, e2) + d2 * cross(e1, n) ) / (2 * area^2 ) 
-        #
-        # For numerical stability, you may see slightly different but equivalent forms.
-
-        # Accumulate this face gradient into each vertex of the face
-        grad_accum[i0] += grad_face
-        grad_accum[i1] += grad_face
-        grad_accum[i2] += grad_face
-        
-        face_count[i0] += 1
-        face_count[i1] += 1
-        face_count[i2] += 1
-
-    # Average the accumulated gradients
-    # Prevent division by zero for isolated vertices (if any)
-    valid_mask = face_count > 0
-    grad_accum[valid_mask] /= face_count[valid_mask, None]
-
-    # Finally, compute gradient magnitude
-    grad_magnitudes = np.linalg.norm(grad_accum, axis=1)
-    return grad_magnitudes
-
-
-
-
 def smooth_surface(faces, values, iterations=2):
     """
     Smooth a surface-based fMRI statistical map using neighborhood averaging.
@@ -285,7 +116,7 @@ def smooth_surface_graph(
     ----------
     graph : networkx.Graph
         A NetworkX graph where nodes represent vertices and edges represent adjacency.
-    values : numpy.ndarray, shape (n_vertices,)
+    values : numpy.ndarray, shape (n_vertices,) or (n_surface , n_vertices)
         Statistical values (e.g., t-scores, z-scores) associated with each vertex.
     iterations : int, optional (default=2)
         Number of smoothing iterations to perform.
@@ -295,28 +126,6 @@ def smooth_surface_graph(
     smoothed_map : numpy.ndarray, shape (n_vertices,)
         Smoothed statistical values on the surface mesh.
 
-    Raises
-    ------
-    ValueError
-        If the number of nodes in the graph does not match the length of `values`.
-
-    Notes
-    -----
-    - This function performs smoothing by averaging each vertex's value with its immediate neighbors.
-    - Increasing the number of iterations results in more extensive smoothing.
-    - The function leverages sparse matrix operations for efficiency.
-
-    Example
-    -------
-    >>> import numpy as np
-    >>> import networkx as nx
-    >>> # Create a simple graph with 4 nodes
-    >>> G = nx.Graph()
-    >>> G.add_edges_from([(0, 1), (0, 2), (2, 3)])
-    >>> values = np.array([1.0, 2.0, 3.0, 4.0])
-    >>> smoothed = smooth_surface_graph(G, values, iterations=1)
-    >>> print(smoothed)
-    [2.5 2.  2.33333333 2.0]
     """
     # Validate inputs
     if not isinstance(graph, nx.Graph):
@@ -512,5 +321,77 @@ def watershed_by_flooding(vertices, faces, values, neighbors=None):
                 break  # stop flooding from i
 
     return labels
+
+
+####################### EXAMPLE USAGE  #######################
+
+
+# import numpy as np
+# from collections import defaultdict, deque
+
+# def build_adjacency(n_vertices, faces):
+#     neighbors = defaultdict(set)
+#     for (v1, v2, v3) in faces:
+#         neighbors[v1].update([v2, v3])
+#         neighbors[v2].update([v1, v3])
+#         neighbors[v3].update([v1, v2])
+#     return dict(neighbors)
+
+# def compute_gradient_magnitude(values, neighbors):
+#     n_vertices = len(values)
+#     grad_map = np.zeros(n_vertices, dtype=float)
+#     for v in range(n_vertices):
+#         val_v = values[v]
+#         nb_vals = [values[n] for n in neighbors[v]]
+#         # e.g., approximate local gradient as stdev of neighbors
+#         # or use max absolute difference:
+#         diffs = [abs(val_v - nv) for nv in nb_vals]
+#         grad_map[v] = np.max(diffs)  # or use np.max(diffs)
+#     return grad_map
+
+# def detect_edges_surface(values, faces, high_ratio=0.8, low_ratio=0.4):
+#     """
+#     A simplified 'Canny-like' approach on a surface:
+#       1) Build adjacency
+#       2) Compute gradient magnitude
+#       3) Hysteresis thresholding with two thresholds
+
+#     values: (N,) array of scalar data
+#     faces: (M,3) array of triangle indices
+#     high_ratio: fraction of the max gradient to define 'high' threshold
+#     low_ratio: fraction of the max gradient to define 'low' threshold
+
+#     returns edge_map: (N,) boolean array for which vertices are edges
+#     """
+#     n_vertices = len(values)
+#     neighbors = build_adjacency(n_vertices, faces)
+    
+#     # 1) Compute gradient magnitude
+#     grad_map = compute_gradient_magnitude(values, neighbors)
+    
+#     # 2) Determine thresholds
+#     gmax = grad_map.max()
+#     high_thr = high_ratio * gmax
+#     low_thr  = low_ratio  * gmax
+
+#     # 3) Label strong edges (above high_thr) and weak edges (between low_thr, high_thr)
+#     strong_edges = np.where(grad_map >= high_thr)[0]
+#     weak_edges   = np.where((grad_map >= low_thr) & (grad_map < high_thr))[0]
+    
+#     edge_map = np.zeros(n_vertices, dtype=bool)
+#     edge_map[strong_edges] = True  # Mark strong edges
+
+#     # 4) Hysteresis: BFS or DFS from strong edges to see if we can include weak edges
+#     weak_set = set(weak_edges)  # to check membership quickly
+#     queue = deque(strong_edges)
+#     while queue:
+#         v = queue.popleft()
+#         for nb in neighbors[v]:
+#             if nb in weak_set and (not edge_map[nb]):
+#                 # Promote this weak edge to a 'real' edge
+#                 edge_map[nb] = True
+#                 queue.append(nb)
+    
+#     return edge_map, grad_map
 
 
