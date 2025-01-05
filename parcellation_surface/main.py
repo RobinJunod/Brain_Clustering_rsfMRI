@@ -81,9 +81,9 @@ if __name__ == "__main__":
     #%% plot the gradient map
     gradients = compute_gradients(graph,
                                   sim_matrix_smooothed,
-                                  skip=10)
+                                  skip=1000)
     # load the gradient map
-    gradients = load_gradient_map("D:\DATA_min_preproc\dataset_study2\sub-01\outputs_surface\gradient_map\gradient_map_20250104163839.npy")
+    # gradients = load_gradient_map("D:\DATA_min_preproc\dataset_study2\sub-01\outputs_surface\gradient_map\gradient_map_20250104163839.npy")
     visualize_brain_surface(coords, faces, gradients)
     save_gradient_map(gradients, subj_dir + r"\outputs_surface\gradient_map")
     # plotting.plot_surf_stat_map(
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     #     cmap='coolwarm'
     # )
     
-    
+    #%% smooth the gradient map
     gradient_smoothed = smooth_surface(faces,
                                        gradients,
                                        iterations=5)

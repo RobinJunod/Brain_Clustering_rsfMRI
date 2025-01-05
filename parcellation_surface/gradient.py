@@ -42,21 +42,12 @@ def compute_gradient(graph, stat_map):
     return gradients
 
 
-def compute_gradients(graph, similarity_matrix):
+def compute_gradients(graph, similarity_matrix, skip=10):
     """Compute the gradients of the similarty matrix on a mesh surface.
-    Args:
-        graph (_type_): _description_
-        similarity_matrix (_type_): _description_
-
-    Raises:
-        TypeError: _description_
-        ValueError: _description_
-
-    Returns:
-        _type_: _description_
     """
     gradients = np.zeros_like(similarity_matrix[0,:])
-    for stat_map in similarity_matrix:
+    for idx_map in range(0,similarity_matrix.shape[0], skip):
+        stat_map = similarity_matrix[idx_map,:]
         gradient = np.zeros_like(stat_map)
         for vertex in graph.nodes:
             neighbors = list(graph.neighbors(vertex))
