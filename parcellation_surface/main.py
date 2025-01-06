@@ -15,28 +15,34 @@ from watershed import watershed_by_flooding, save_labels,\
 from visualization import visualize_brain_surface
 
 
-#%% Paths
-SUBJECT = r"04"
+#%% Paths (TODO : REMOVE THESE GLOBAL VARIABLES)
+subject = r"04"
 
-subj_dir = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_006_Rest.nii"
+subj_dir = r"D:\DATA_min_preproc\dataset_study2\sub-" + subject
 
-path_midthickness_r = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\rh.midthickness.32k.surf.gii"
-path_midthickness_l = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\lh.midthickness.32k.surf.gii"
 
-path_white_r = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\rh.white.32k.surf.gii"
-path_white_l = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\lh.white.32k.surf.gii"
+path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + subject + r"_006_Rest.nii"
 
-path_pial_r = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\rh.pial.32k.surf.gii"
-path_pial_l = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\lh.pial.32k.surf.gii"
+path_midthickness_r = subj_dir + r"\sub" + subject + r"_freesurfer\surf\rh.midthickness.32k.surf.gii"
+path_midthickness_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.32k.surf.gii"
 
-path_midthickness_l_inflated = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
-path_midthickness_r_inflated = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
+path_white_r = subj_dir + r"\sub" + subject + r"_freesurfer\surf\rh.white.32k.surf.gii"
+path_white_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.white.32k.surf.gii"
 
-path_brain_mask = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
+path_pial_r = subj_dir + r"\sub" + subject + r"_freesurfer\surf\rh.pial.32k.surf.gii"
+path_pial_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.pial.32k.surf.gii"
+
+path_midthickness_l_inflated = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
+path_midthickness_r_inflated = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
+
+path_brain_mask = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
 
 #%%
-def single_subj_parcellation(subj_dir):
+def single_subj_parcellation(subj_dir, 
+                             path_func, 
+                             path_midthickness_l, 
+                             path_midthickness_r,
+                             path_brain_mask):
     
     print(f"Processing subject {subj_dir}")
     
@@ -76,7 +82,7 @@ def single_subj_parcellation(subj_dir):
         print(f'{hemisphere} computing gradients...')
         gradients = compute_gradients(graph,
                                     sim_matrix_smooothed,
-                                    skip=100)
+                                    skip=20)
         
         save_gradient_map(gradients,
                           subj_dir + r"\outputs_surface\gradient_map",
@@ -97,8 +103,41 @@ def single_subj_parcellation(subj_dir):
         visualize_brain_surface(coords, faces, labels)
 
 
-single_subj_parcellation(subj_dir)
+single_subj_parcellation(subj_dir, 
+                        path_func, 
+                        path_midthickness_l, 
+                        path_midthickness_r,
+                        path_brain_mask)
 
+#%% Multi-subject parcellation
+def multi_subj_parcellation(dataset_dir):
+    """
+    This script will output all the parcellation maps for all the subjects individually.
+    WARNING : it doesn't create the across-subject parcellation map nor the gradient map.
+    """
+    for s in range(1,20):
+        print('='*50)
+        print('Processing subject : ', s)
+        print('='*50)
+        subject = f"{s:02d}"
+        # Path to the subject directory
+        subj_dir = dataset_dir + subject
+        # Paths
+        path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + subject + r"_006_Rest.nii"
+        path_midthickness_r = subj_dir + r"\sub" + subject + r"_freesurfer\surf\rh.midthickness.32k.surf.gii"
+        path_midthickness_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.32k.surf.gii"
+        path_brain_mask = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
+        
+        single_subj_parcellation(subj_dir, 
+                                path_func, 
+                                path_midthickness_l, 
+                                path_midthickness_r,
+                                path_brain_mask)
+        print('='*50)
+        print('Success Parcellation of Subject : ', s)
+        print('='*50)
+
+multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study2\sub-")
 
 #%%
 if __name__ == "__main__":
@@ -117,7 +156,7 @@ if __name__ == "__main__":
     gradient_values = load_gradient_map(path_gradient_values)
     parcels_values = load_labels(path_parcels_values)
     
-    pass
+    
     
 
 
