@@ -27,10 +27,18 @@ Freesurfer and wb_command (from the HCP project) must be installed.
 
 ---
 #### 1 Convert to .gii
-````mris_convert lh.white lh.white.surf.gii'```
-```mris_convert lh.pial.T1 lh.pial.surf.gii```
-```mris_convert rh.white rh.white.surf.gii```
-```mris_convert rh.pial.T1 rh.pial.surf.gii```
+
+```bash
+mris_convert lh.white lh.white.surf.gii
+
+```bash
+mris_convert lh.pial.T1 lh.pial.surf.gii
+
+```bash
+mris_convert rh.white rh.white.surf.gii
+
+```bash
+mris_convert rh.pial.T1 rh.pial.surf.gii
 
 #### 2 Create the midthickness surface
 ```wb_command -surface-average lh.midthickness.surf.gii -surf lh.white.surf.gii -surf lh.pial.surf.gii```
