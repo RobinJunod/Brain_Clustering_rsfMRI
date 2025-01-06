@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 import numpy as np
 import networkx as nx
 from datetime import datetime
@@ -139,18 +140,24 @@ def compute_gradient_magnitudes(faces, coords, values):
     return grad_magnitudes
 
 
-def save_gradient_map(gradient_map, output_dir):
-    """
-    Save the gradient map
+def save_gradient_map(
+        gradient_map,
+        output_dir,
+        hemisphere: Literal["lh", "rh"]
+    ) -> None:
+    """Save the gradient map into a .npy file
+    Args:
+        gradient_map (np.array): the gradient in order to the coords from the triangles surface
+        output_dir (string): dir for grad output
+        hemisphere (strinf): the hemisphere of the surface data
     """
     time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\gradient_map_{time}.npy"
+    path = output_dir + f"\{hemisphere}_gradient_map_{time}.npy"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.save(path, gradient_map)
     
 def load_gradient_map(path):
-    """
-    Load the gradient map
+    """Load the gradient map
     """
     gradient_map = np.load(path)
     return gradient_map

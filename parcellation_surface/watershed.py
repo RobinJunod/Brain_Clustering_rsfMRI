@@ -2,7 +2,9 @@
 Watershed by flooding algorithm for surface mesh segmentation.
 
 """
-
+import os
+from typing import Literal
+from datetime import datetime
 import heapq
 import numpy as np
 
@@ -101,6 +103,30 @@ def watershed_by_flooding(graph, values):
 
 
 
+def save_labels(
+        labels,
+        output_dir,
+        hemisphere: Literal["lh", "rh"]
+    ) -> None:
+    """Save the labels into a .npy file
+    Args:
+        labels (np.array): the labels of the surface data
+        output_dir (string): dir for the labels output
+        hemisphere (strinf): the hemisphere of the surface data
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = output_dir + f"\{hemisphere}_labels_{time}.npy"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    np.save(path, labels)
+
+def load_labels(path):
+    """
+    Load the labels
+    """
+    labels = np.load(path)
+    return labels
+
+
 
 ##################### Other method for edges detection #####################
 # Non-maxima suppression
@@ -111,9 +137,10 @@ def non_maxima_suppression(graph,
     """
     Apply non-maxima suppression to identify edge vertices.
     
-    graph: networkx.Graph object
-    gradient_map: ndarray of shape (n_vertices,)
-    min_neighbors: int, number of non-adjacent maxima required
+    Args:
+        graph: networkx.Graph object
+        gradient_map: ndarray of shape (n_vertices,)
+        min_neighbors: int, number of non-adjacent maxima required
     
     Returns:
         edge_map: ndarray of shape (n_vertices,), boolean

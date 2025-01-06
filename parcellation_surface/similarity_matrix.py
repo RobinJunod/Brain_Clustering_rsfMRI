@@ -1,9 +1,8 @@
 #%%
+import os
+from datetime import datetime
+from typing import Literal
 import numpy as np
-import nibabel as nib
-from nilearn import surface, plotting
-import networkx as nx
-
 from preprocessing_surface import fmri_to_spatial_modes
 
 """
@@ -71,13 +70,23 @@ def compute_similarity_matrix(surf_fmri,
                               preproc_vol_fmri_img,
                               resampled_mask_img,
                               n_modes=179):
-    """_summary_
-    Args:
-        surf_fmri (np.array): nomalized surface data
-        preproc_vol_fmri_img (_type_): _description_
-        resampled_mask_img (_type_): _description_
-    Returns:
-        _type_: _description_
+    """
+    Calculate the pairwise similarity matrix for the given dataset.
+
+    This function computes a similarity matrix where each element [i, j] represents
+    the similarity between the ith and jth samples in the input data. The similarity
+    metric used can be Pearson correlation, cosine similarity, or any other specified measure.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        A 2D NumPy array of shape (n_samples, n_features) containing the dataset.
+
+    Returns
+    -------
+    sim_matrix : np.ndarray
+        A 2D NumPy array of shape (n_samples, n_samples) representing the similarity
+        scores between each pair of samples.
     """
     print("Computing the similarity matrix...")
     # Get the spatial modes (np.array) (noramlized)
@@ -100,6 +109,28 @@ def compute_similarity_matrix(surf_fmri,
 
     return similarity_matrix
 
+
+def save_similartiy_matrix(similarity_matrix,
+                           output_dir,
+                           hemisphere: Literal["lh", "rh"]
+                           ) -> None:
+    """Save the similarity matrix into a .npy file
+    Args:
+        gradient_map (2d np.array): the similartiy matrix (n_vertex, n_vertex) same order as coords
+        output_dir (string): dir for sim map output
+        hemisphere (strinf): the hemisphere of the surface data
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = output_dir + f"\{hemisphere}similarity_matrix_{time}.npy"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    np.save(path, similarity_matrix)
+
+def load_similarity_matrix(path):
+    """
+    Load the similarity matrix
+    """
+    similarity_matrix = np.load(path)
+    return similarity_matrix
 
 
 #####################################################

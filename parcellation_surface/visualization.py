@@ -2,20 +2,30 @@
 import numpy as np
 from nilearn.plotting import view_surf
 
-def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis", threshold=0):
+def visualize_brain_surface(vertices,
+                            faces,
+                            scalar_values,
+                            title="Statistical map on surface",
+                            cmap="viridis",
+                            threshold=0):
     """
     Visualize scalar data on a triangular mesh using Nilearn.
 
-    Parameters
-    ----------
-    vertices : (N, 3) ndarray
-        3D coordinates of each vertex.
-    faces : (M, 3) ndarray
-        Triangles as vertex indices.
-    scalar_values : (N,) ndarray
-        The scalar (e.g., gradient magnitude) for each vertex.
-    cmap : str
-        Name of the color map (e.g. "viridis", "coolwarm", etc.).
+    Args:
+        vertices : (N, 3) ndarray
+            3D coordinates of each vertex.
+        faces : (M, 3) ndarray
+            Triangles as vertex indices.
+        scalar_values : (N,) ndarray
+            The scalar (e.g., gradient magnitude) for each vertex.
+        title : str or None
+            Title of the plot.
+        cmap : str
+            Name of the color map (e.g. "viridis", "coolwarm", etc.).
+        threshold : float
+            Threshold value for the scalar data.
+    Returns:
+        view : Nilearn plot
     """
     # Create a surface mesh
     surf_mesh = (vertices, faces)
@@ -28,7 +38,7 @@ def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis", thre
         cmap=cmap,
         bg_map=None,
         threshold=high_threshold,
-        title="Statistical map on surface",
+        title=title,
     )
 
     return view
@@ -36,7 +46,7 @@ def visualize_brain_surface(vertices, faces, scalar_values, cmap="viridis", thre
 
 
 
-##########################
+# Visualization inflated custom function
 import numpy as np
 
 def build_adjacency_list(faces, n_vertices):

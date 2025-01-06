@@ -145,38 +145,8 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     return surf_fmri_l, surf_fmri_r
 
 
-def save_similartiy_matrix(similarity_matrix, output_dir):
-    """
-    Save the similarity matrix (WARNING : not really convinient to save this matrix)
-    """
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\similarity_matrix_{time}.npy"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    np.save(path, similarity_matrix)
-
-def load_similarity_matrix(path):
-    """
-    Load the similarity matrix
-    """
-    similarity_matrix = np.load(path)
-    return similarity_matrix
 
 
-def save_gradient_map(gradient_map, output_dir):
-    """
-    Save the gradient map
-    """
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\gradient_map_{time}.npy"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    np.save(path, gradient_map)
-    
-def load_gradient_map(path):
-    """
-    Load the gradient map
-    """
-    gradient_map = np.load(path)
-    return gradient_map
 
 
 
@@ -184,14 +154,5 @@ def load_gradient_map(path):
 
 #%% Run the code
 if __name__ == "__main__":
-
     vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func, path_brain_mask)
-
     surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r)
-
-                                         
-                                        
-
-
-
-# %%
