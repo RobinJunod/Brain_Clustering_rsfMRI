@@ -3,34 +3,11 @@ import os
 from datetime import datetime
 from typing import Literal
 import numpy as np
-from preprocessing_surface import fmri_to_spatial_modes
+import nibabel as nib
 
-"""
-Inputs :
-- fmri projected into surface space
-- frmi data in volume space
-- mask data in volume space
+from preprocessing_surface import fmri_to_spatial_modes, load_volume_data, fmri_vol2surf
+from visualization import visualize_brain_surface
 
-output : a similartiy matrix of shape (n, n) where n is the number of vertices in the surface
-"""
-
-# # Paths
-# SUBJECT = r"01"
-
-# subj_dir = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-# path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
-
-# path_midthickness_r = subj_dir + r"\func\rh.midthickness.32k.surf.gii"
-# path_midthickness_l = subj_dir + r"\func\lh.midthickness.32k.surf.gii"
-
-# path_white_r = subj_dir + r"\func\rh.white.32k.surf.gii"
-# path_white_l = subj_dir + r"\func\lh.white.32k.surf.gii"
-
-# path_pial_r = subj_dir + r"\func\rh.pial.32k.surf.gii"
-# path_pial_l = subj_dir + r"\func\lh.pial.32k.surf.gii"
-
-# path_brain_mask = subj_dir + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
-#%%
 
 def compute_RSFC_matrix(surf_fmri):
     """
@@ -131,6 +108,37 @@ def load_similarity_matrix(path):
     """
     similarity_matrix = np.load(path)
     return similarity_matrix
+
+#%% Run the code
+
+if __name__ == "__main__":
+    # Define the paths
+    path_midthickness_l = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.32k.surf.gii"
+    path_midthickness_r = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\rh.midthickness.32k.surf.gii"
+    path_func = r"D:\DATA_min_preproc\dataset_study1\sub-03\func\wsraPPS-FACE_S03_005_Rest.nii"
+    path_brain_mask = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\mri\brainmask.mgz"
+    
+    # Compute the similarity matrix (dataset1)
+    vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func,
+                                                                path_brain_mask)
+    surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, 
+                                            path_midthickness_l, 
+                                            path_midthickness_r)
+    surf_fmri = surf_fmri_l
+    path_midthickness = path_midthickness_l
+    del surf_fmri_l, surf_fmri_r # Save memory
+    
+    gii = nib.load(path_midthickness)
+    coords = gii.darrays[0].data  # shape: (N_vertices, 3)
+    faces = gii.darrays[1].data   # shape: (N_faces, 3)
+
+    print(f'lh computing similarity matrix...')
+    similarity_matrix = compute_similarity_matrix(surf_fmri, 
+                                                vol_fmri_img,
+                                                resampled_mask_img,
+                                                n_modes=179)
+    
+
 
 
 #####################################################
@@ -359,3 +367,4 @@ def load_similarity_matrix(path):
 #                                       graph,
 #                                       min_neighbors=3)
 #     edge_map += edge_map_*1
+# %%

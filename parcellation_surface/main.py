@@ -56,11 +56,11 @@ def single_subj_parcellation(subj_dir,
         if hemisphere == 'lh':
             surf_fmri = surf_fmri_l
             path_midthickness = path_midthickness_l
-            path_midthickness_inflated = path_midthickness_l_inflated
+            # path_midthickness_inflated = path_midthickness_l_inflated
         elif hemisphere == 'rh':    
             surf_fmri = surf_fmri_r
             path_midthickness = path_midthickness_r
-            path_midthickness_inflated = path_midthickness_r_inflated
+            # path_midthickness_inflated = path_midthickness_r_inflated
         else:
             raise ValueError('Invalid hemisphere') # Debug inside the function
         del surf_fmri_l, surf_fmri_r # Save memory
@@ -79,6 +79,7 @@ def single_subj_parcellation(subj_dir,
         sim_matrix_smooothed = smooth_surface(faces,
                                             similarity_matrix, 
                                             iterations=5)
+        del similarity_matrix # Save memory
         print(f'{hemisphere} computing gradients...')
         gradients = compute_gradients(graph,
                                     sim_matrix_smooothed,
@@ -103,11 +104,11 @@ def single_subj_parcellation(subj_dir,
         visualize_brain_surface(coords, faces, labels)
 
 
-single_subj_parcellation(subj_dir, 
-                        path_func, 
-                        path_midthickness_l, 
-                        path_midthickness_r,
-                        path_brain_mask)
+# single_subj_parcellation(subj_dir, 
+#                         path_func, 
+#                         path_midthickness_l, 
+#                         path_midthickness_r,
+#                         path_brain_mask)
 
 #%% Multi-subject parcellation
 def multi_subj_parcellation(dataset_dir):
@@ -115,15 +116,15 @@ def multi_subj_parcellation(dataset_dir):
     This script will output all the parcellation maps for all the subjects individually.
     WARNING : it doesn't create the across-subject parcellation map nor the gradient map.
     """
-    for s in range(1,20):
+    for s in range(12,18): # TODO : customize the range
         print('='*50)
         print('Processing subject : ', s)
         print('='*50)
         subject = f"{s:02d}"
         # Path to the subject directory
-        subj_dir = dataset_dir + subject
-        # Paths
-        path_func = subj_dir + r"\func\rwsraOB_TD_FBI_S" + subject + r"_006_Rest.nii"
+        subj_dir = dataset_dir + r"\sub-" + subject
+        # Paths : TODO : to customize with your paths
+        path_func = subj_dir + r"\func\wsraPPS-FACE_S" + subject + r"_005_Rest.nii"
         path_midthickness_r = subj_dir + r"\sub" + subject + r"_freesurfer\surf\rh.midthickness.32k.surf.gii"
         path_midthickness_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.32k.surf.gii"
         path_brain_mask = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
@@ -137,16 +138,29 @@ def multi_subj_parcellation(dataset_dir):
         print('Success Parcellation of Subject : ', s)
         print('='*50)
 
-multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study2\sub-")
+# Run for the dataset1 
+multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study1")
+
+# Run for the dataset2
+# multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study2\sub-")
 
 #%%
+
 if __name__ == "__main__":
     print("Load and Test the results")
-    path_midthickness = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.32k.surf.gii"
-    path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
     
-    path_gradient_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\gradient_map\lh_gradient_map_20250106104701.npy"
-    path_parcels_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\labels\lh_labels_20250106104701.npy"
+    # path for the dataset 2
+    # path_midthickness = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.32k.surf.gii"
+    # path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
+    # path_gradient_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\gradient_map\lh_gradient_map_20250106104701.npy"
+    # path_parcels_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\labels\lh_labels_20250106104701.npy"
+    
+    
+    # Path for the dataset 1
+    path_midthickness = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.32k.surf.gii"
+    path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
+    path_gradient_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\gradient_map\lh_gradient_map_20250106155120.npy"
+    path_parcels_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\labels\lh_labels_20250106155121.npy"
     
     
     gii = nib.load(path_midthickness)
@@ -156,6 +170,8 @@ if __name__ == "__main__":
     gradient_values = load_gradient_map(path_gradient_values)
     parcels_values = load_labels(path_parcels_values)
     
+    # visualize_brain_surface(coords, faces, gradient_values, title='Gradient Map')
+    visualize_brain_surface(coords, faces, parcels_values, title='Parcellation Map')
     
     
 

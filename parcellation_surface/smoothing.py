@@ -96,11 +96,12 @@ def smooth_surface(faces, values, iterations=2):
     smoothing_operator = W.dot(adjacency)
     
     # Step 6: Initialize smoothed_map
-    smoothed_map = values.copy()
+    #smoothed_map = values.copy()
     
     # Step 7: Perform iterative smoothing
     for _ in range(iterations):
-        smoothed_map = smoothing_operator.dot(smoothed_map)
+        #smoothed_map = smoothing_operator.dot(smoothed_map)
+        smoothed_map = smoothing_operator.dot(values)
     
     return smoothed_map
 
@@ -163,12 +164,9 @@ def smooth_surface_graph(
     # Define the smoothing operator (W * adjacency)
     smoothing_operator = W.dot(adjacency_matrix)
 
-    # Initialize smoothed_map
-    smoothed_map = values.copy()
-
     # Perform iterative smoothing
     for _ in range(iterations):
-        smoothed_map = smoothing_operator.dot(smoothed_map)
+        smoothed_map = smoothing_operator.dot(values)
 
     return smoothed_map
 
