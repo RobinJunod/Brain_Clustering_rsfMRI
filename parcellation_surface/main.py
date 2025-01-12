@@ -116,7 +116,7 @@ def multi_subj_parcellation(dataset_dir):
     This script will output all the parcellation maps for all the subjects individually.
     WARNING : it doesn't create the across-subject parcellation map nor the gradient map.
     """
-    for s in range(12,18): # TODO : customize the range
+    for s in range(18,19): # TODO : customize the range
         print('='*50)
         print('Processing subject : ', s)
         print('='*50)
@@ -139,10 +139,34 @@ def multi_subj_parcellation(dataset_dir):
         print('='*50)
 
 # Run for the dataset1 
-multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study1")
-
+# multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study1")
 # Run for the dataset2
 # multi_subj_parcellation(dataset_dir = r"D:\DATA_min_preproc\dataset_study2\sub-")
+
+
+# Compute the group parcellation map
+def group_parcellation(path_list):
+    """From a list of outdir path, compute the average parcellation map. And then perform watershedby flooding.
+
+    Args:
+        path_list (_type_): _description_
+    """
+    # Load all the labels
+    labels_list = []
+    for path in path_list:
+        labels = load_labels(path)
+        labels_list.append(labels)
+    labels_array = np.array(labels_list)
+    # Compute the average
+    average_labels = np.mean(labels_array, axis=0)
+    # Perform watershed by flooding
+    graph = build_mesh_graph(faces)
+    edge_map = np.zeros_like(average_labels)
+    for i in range(average_labels.shape[0]):
+        edge_map[i] = np.mean([average_labels[j] for j in graph[i]], axis=0)
+    labels = watershed_by_flooding(graph, edge_map)
+    return labels
+
 
 #%%
 
@@ -155,13 +179,11 @@ if __name__ == "__main__":
     # path_gradient_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\gradient_map\lh_gradient_map_20250106104701.npy"
     # path_parcels_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\labels\lh_labels_20250106104701.npy"
     
-    
     # Path for the dataset 1
     path_midthickness = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.32k.surf.gii"
     path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
     path_gradient_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\gradient_map\lh_gradient_map_20250106155120.npy"
     path_parcels_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\labels\lh_labels_20250106155121.npy"
-    
     
     gii = nib.load(path_midthickness)
     coords = gii.darrays[0].data  # shape: (N_vertices, 3)
