@@ -40,7 +40,17 @@ path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.s
 
 def load_volume_data(path_func, path_brain_mask):
     """
-    Preprocess the volume data
+    Load and preprocess fMRI volume data and brain mask.
+    
+    Args:
+        path_func (str): Path to the fMRI volume data file.
+        path_brain_mask (str): Path to the brain mask file.
+
+    Returns:
+        tuple: A tuple containing:
+            - vol_fmri_masked (numpy.ndarray): Masked fMRI volume data.
+            - resampled_mask (numpy.ndarray): Resampled brain mask.
+            - affine_vol_fmri (numpy.ndarray): Affine transformation matrix of the fMRI volume data.
     """
     # Load volumetric data
     fmri_img = nib.load(path_func)
@@ -69,16 +79,16 @@ def load_volume_data(path_func, path_brain_mask):
     vol_fmri_masked_ = vol_fmri[resampled_mask]
     vol_fmri_masked = np.zeros_like(vol_fmri)
     vol_fmri_masked[resampled_mask] = vol_fmri_masked_
-    vol_fmri_img = nib.Nifti1Image(vol_fmri_masked, 
-                                    affine=fmri_img.affine, 
-                                    header=fmri_img.header)
+    # vol_fmri_img = nib.Nifti1Image(vol_fmri_masked, 
+    #                                 affine=fmri_img.affine, 
+    #                                 header=fmri_img.header)
     # #%% Visualize the mask and the fmri data
     # mean_fmri = np.mean(vol_fmri, axis=-1)
     # mean_fmri_img = nib.Nifti1Image(mean_fmri, affine_vol_fmri)
     # plotting.view_img(resampled_mask_img, 
     #                 bg_img=mean_fmri_img)
     
-    return vol_fmri_img, resampled_mask_img, affine_vol_fmri
+    return vol_fmri_masked, resampled_mask, affine_vol_fmri
 
 
 def downsample_volume_fmri(vol_fmri_img,
@@ -91,9 +101,9 @@ def downsample_volume_fmri(vol_fmri_img,
     pass
 
 
-def fmri_to_spatial_modes(vol_fmri_img, 
-                          resampled_mask_img,
-                          n_modes=10_000):
+def fmri_to_spatial_modes(vol_fmri, 
+                          resampled_mask,
+                          n_modes=380):
     """
     Converts fMRI volume images to spatial modes using Singular Value Decomposition (SVD).
 
@@ -105,11 +115,9 @@ def fmri_to_spatial_modes(vol_fmri_img,
         numpy.ndarray: 2D array of spatial modes.
     """
     from scipy.linalg import svd
-    mask = resampled_mask_img.get_fdata()
-    mask_idx = np.where(mask)
-    fmri = vol_fmri_img.get_fdata()
+    mask_idx = np.where(resampled_mask)
     # Create the spatial modes
-    fmri_masked = fmri[mask_idx]
+    fmri_masked = vol_fmri[mask_idx]
     # keep the voxel with more 50% of the variance 
     
     fmri_m_normalized = (fmri_masked - np.mean(fmri_masked, axis=1, keepdims=True)) / np.std(fmri_masked, axis=1, keepdims=True)
@@ -143,7 +151,6 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     surf_fmri_r = (surf_fmri_r - np.mean(surf_fmri_r, axis=1, keepdims=True)) / np.std(surf_fmri_r, axis=1, keepdims=True)
     
     return surf_fmri_l, surf_fmri_r
-
 
 
 

@@ -7,6 +7,7 @@ from typing import Literal
 from datetime import datetime
 import heapq
 import numpy as np
+import nibabel as nib
 
 
 def find_local_minima(values, graph):
@@ -100,6 +101,35 @@ def watershed_by_flooding(graph, values):
                 break
     
     return labels
+
+
+def save_labels_mgh(labels,
+                    output_dir,
+                    hemisphere: Literal["lh", "rh"]):
+    """Save the gradient map into a .mgh file
+    Args:
+        labels (np.array): the labels in order to the coords from the triangles surface
+        output_dir (string): dir for grad output
+        hemisphere (strinf): the hemisphere of the surface data
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = output_dir + f"\{hemisphere}_labels_{time}.npy"
+    # Reshape the data to match the FreeSurfer .mgh format expectations
+    labels_reshaped = labels.reshape((len(labels), 1, 1)).astype(np.float32)
+    # 3. Create an identity affine (often used for surface data).
+    affine = np.eye(4)
+    # 4. Construct the MGH image.
+    mgh_img = nib.freesurfer.mghformat.MGHImage(labels_reshaped, affine)
+    # 5. Save the MGH file to disk.
+    path = output_dir + f"\{hemisphere}_labels_{time}.mgh"
+    nib.save(mgh_img, path)
+
+def load_labels_mgh(mgh_file_path):
+    # Load the MGH image
+    mgh_image = nib.load(mgh_file_path)
+    # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
+    data = mgh_image.get_fdata().squeeze()
+    return data
 
 
 
