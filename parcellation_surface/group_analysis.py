@@ -2,6 +2,7 @@
 import os
 import glob
 import numpy as np
+from typing import Literal # Requires Python 3.8+
 
 from gradient import build_mesh_graph, compute_gradients
 from watershed import watershed_by_flooding
@@ -17,13 +18,12 @@ def extract_timestamp(fpath):
     time_str = fname.split('_')[-1].replace(".npy", "")
     return time_str
 
-def extracrt_gradparc_list():
+def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"]):
     list_parc = []
     list_grad = []
-    hemisphere = 'lh'
     dataset_dir = r"D:\DATA_min_preproc\dataset_study1"
     for s in range(1,19): # TODO : customize the range
-        print('grad map and parcellation map of subject : ', s)
+        # print('grad map and parcellation map of subject : ', s)
         subject = f"{s:02d}"
         # Path to the subject directory
         subj_dir = dataset_dir + r"\sub-" + subject
@@ -64,7 +64,7 @@ def compute_average_midthickness(surf_paths, out_path):
     common_faces = None
 
     for i, path in enumerate(surf_paths):
-        gii = nib.load(path_midthickness)
+        gii = nib.load(path)
         coords = gii.darrays[0].data  # shape: (N_vertices, 3)
         faces = gii.darrays[1].data   # shape: (N_faces, 3)
         
@@ -101,43 +101,36 @@ def compute_average_midthickness(surf_paths, out_path):
 if __name__ == "__main__":
     import nibabel as nib
     dataset_dir = r"D:\DATA_min_preproc\dataset_study1"
-
-    path_midthickness = dataset_dir + r"\sub-01" + r"\sub" + '01' + r"_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
-    gii = nib.load(path_midthickness)
-    coords = gii.darrays[0].data  # shape: (N_vertices, 3)
-    faces = gii.darrays[1].data   # shape: (N_faces, 3)
     
     # Compute the group average midthickness
-    surf_paths = [f"{dataset_dir}/sub-{i:02d}/sub{i:02d}_freesurfer/surf/lh.midthickness.inflated.32k.surf.gii" for i in range(1, 19)]
-    out_path = f"{dataset_dir}/group_average_midthickness.lh.gii"
+    surf_paths = [f"{dataset_dir}/sub-{i:02d}/sub{i:02d}_freesurfer/surf/lh.midthickness.32k.surf.gii" for i in range(1, 19)]
+    out_path = f"{dataset_dir}/lh.group_average_midthickness.gii"
     compute_average_midthickness(surf_paths, out_path)
     
     # Compute the group average midthickness right hemisphere
-    path_midthickness = dataset_dir + r"\sub-01" + r"\sub" + '01' + r"_freesurfer\surf\rh.midthickness.inflated.32k.surf.gii"
-    out_path = f"{dataset_dir}/group_average_midthickness.rh.gii"
+    surf_paths = [f"{dataset_dir}/sub-{i:02d}/sub{i:02d}_freesurfer/surf/rh.midthickness.32k.surf.gii" for i in range(1, 19)]
+    out_path = f"{dataset_dir}/rh.group_average_midthickness.gii"
     compute_average_midthickness(surf_paths, out_path)
     
     
     # Compute the group average gradient and parcellation
-    group_gradient, group_parcel = extracrt_gradparc_list()
-    # Save the group gradient and parcellation
-    np.save(dataset_dir + r"\group_gradient.npy", group_gradient)
-    np.save(dataset_dir + r"\group_parcel.npy", group_parcel)
-    
-    # Visualize the group gradient and parcellation
-    visualize_brain_surface(out_path, group_gradient, group_parcel)
-    
+    for hemisphere in ["lh", "rh"]:
+        group_gradient, group_parcel = extracrt_gradparc_list(hemisphere=hemisphere)
+        # Save the group gradient and parcellation
+        np.save(dataset_dir + "\\" + hemisphere + ".group_gradient.npy", group_gradient)
+        np.save(dataset_dir + "\\" + hemisphere + ".group_parcel.npy", group_parcel)
+
     # Build the mesh graph
-    path_lh_midthickness_mean = dataset_dir + r"\group_average_midthickness.lh.gii"
-    gii = nib.load(path_midthickness)
+    path_lh_midthickness_mean = dataset_dir + r"\lh.group_average_midthickness.gii"
+    gii = nib.load(path_lh_midthickness_mean)
     coords = gii.darrays[0].data  # shape: (N_vertices, 3)
     faces = gii.darrays[1].data   # shape: (N_faces, 3)
-    values = np.load(dataset_dir + r"\group_gradient.npy")
+    values = np.load(dataset_dir + r"\lh.group_gradient.npy")
     visualize_brain_surface(coords,
                             faces,
                             values,
-                            title="Statistical map on surface",
+                            title="Mean group gradient (left hemisphere)",
                             cmap="viridis",
                             threshold=0)
-    pass
+    
 # %%

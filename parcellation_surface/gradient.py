@@ -1,5 +1,6 @@
 import os
 from typing import Literal
+import nibabel as nib
 import numpy as np
 import networkx as nx
 from datetime import datetime
@@ -155,9 +156,41 @@ def save_gradient_map(
     path = output_dir + f"\{hemisphere}_gradient_map_{time}.npy"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.save(path, gradient_map)
-    
+
 def load_gradient_map(path):
     """Load the gradient map
     """
     gradient_map = np.load(path)
     return gradient_map
+
+def save_gradient_mgh(gradient_map,
+                        output_dir,
+                        hemisphere: Literal["lh", "rh"]):
+    """Save the gradient map into a .mgh file
+    Args:
+        gradient_map (np.array): the gradient in order to the coords from the triangles surface
+        output_dir (string): dir for grad output
+        hemisphere (strinf): the hemisphere of the surface data
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    path = output_dir + f"\{hemisphere}_gradient_map_{time}.npy"
+    # Reshape the data to match the FreeSurfer .mgh format expectations
+    gradient_reshaped = gradient_map.reshape((len(gradient_map), 1, 1)).astype(np.float32)
+    # 3. Create an identity affine (often used for surface data).
+    affine = np.eye(4)
+    # 4. Construct the MGH image.
+    mgh_img = nib.freesurfer.mghformat.MGHImage(gradient_reshaped, affine)
+    # 5. Save the MGH file to disk.
+    path = output_dir + f"\{hemisphere}_gradient_map_{time}.mgh"
+    nib.save(mgh_img, path)
+
+
+def load_gradient_mgh(mgh_file_path):
+
+    # Load the MGH image
+    mgh_image = nib.load(mgh_file_path)
+    
+    # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
+    data = mgh_image.get_fdata().squeeze()
+
+    return data

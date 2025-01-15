@@ -38,10 +38,54 @@ def visualize_brain_surface(vertices,
         cmap=cmap,
         bg_map=None,
         threshold=high_threshold,
+        vmax=scalar_values.max(),
+        vmin=scalar_values.min(),
         title=title,
     )
 
     return view
+
+
+
+# Visualization to plot two different surfaces
+import matplotlib.pyplot as plt
+from nilearn import plotting
+
+def visualize_surfaces_side_by_side(
+    vertices1, faces1, values1,
+    vertices2, faces2, values2
+):
+    fig, axes = plt.subplots(nrows=1, ncols=2, subplot_kw={"projection": "3d"}, figsize=(10, 5))
+    
+    # First surface
+    plotting.plot_surf(
+        surf_mesh=(vertices1, faces1),
+        surf_map=values1,
+        cmap='viridis',
+        colorbar=True,
+        axes=axes[0],
+        title="Surface 1"
+    )
+    
+    # Second surface
+    plotting.plot_surf(
+        surf_mesh=(vertices2, faces2),
+        surf_map=values2,
+        cmap='viridis',
+        colorbar=True,
+        axes=axes[1],
+        title="Surface 2"
+    )
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
 
 
 

@@ -61,3 +61,51 @@ mris_inflate -n 3 -dist 0.1 -no-save-sulc lh.midthickness.32k.surf.gii lh.midthi
 ```bash
 mris_inflate -n 3 -dist 0.1 -no-save-sulc rh.midthickness.32k.surf.gii rh.midthickness.inflated.32k.surf.gii
 ```
+
+
+## Imporatn for group analysis
+cd /mnt/d/DATA_min_preproc/dataset_study1
+export SUBJECTS_DIR=/home/rjunod/freesurfer/study1
+
+### Project fmri data into subject surface 
+```bash
+# Create a surface projection of the functional data IN NATIVE SPACE
+mri_vol2surf \
+  --mov sub-02/func/wsraPPS-FACE_S02_005_Rest.nii.gz \
+  --regheader sub02_freesurfer \
+  --hemi lh \
+  --surf white \
+  --projfrac 0.5 \
+  --interp trilinear \
+  --o sub-02/func/sub02_lh.func.mgh # outputs it in the folder the command has benn executed
+
+mri_vol2surf \
+  --mov sub-02/func/wsraPPS-FACE_S02_005_Rest.nii.gz \
+  --regheader sub02_freesurfer \
+  --hemi rh \
+  --surf white \
+  --projfrac 0.5 \
+  --interp trilinear \
+  --o sub-02/func/sub02_rh.func.mgh
+```
+
+### Project the surface time series into fsaverage6
+
+```bash
+mri_surf2surf \
+  --srcsubject sub02_freesurfer \
+  --trgsubject fsaverage6 \
+  --hemi lh \
+  --sval sub-02/func/sub02_lh.func.mgh \
+  --tval sub-02/func/sub02_lh.func.fsaverage6.mgh \
+  --surfreg sphere.reg
+
+mri_surf2surf \
+  --srcsubject sub01_freesurfer \
+  --trgsubject fsaverage6 \
+  --hemi rh \
+  --sval sub-02/func/sub02_rh.func.mgh \
+  --tval sub-02/func/sub02_rh.func.fsaverage6.mgh \
+  --surfreg sphere.reg
+```
+

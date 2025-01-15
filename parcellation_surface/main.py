@@ -9,7 +9,7 @@ from preprocessing_surface import load_volume_data, fmri_vol2surf
 from similarity_matrix import compute_similarity_matrix
 from smoothing import smooth_surface
 from gradient import compute_gradients, build_mesh_graph, \
-                    load_gradient_map,save_gradient_map
+                    load_gradient_map,save_gradient_map, save_gradient_mgh
 from watershed import watershed_by_flooding, save_labels,\
                     load_labels
 from visualization import visualize_brain_surface
@@ -38,12 +38,21 @@ path_midthickness_r_inflated = subj_dir + r"\sub" + subject + r"_freesurfer\surf
 path_brain_mask = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
 
 #%%
-def single_subj_parcellation(subj_dir, 
+def single_subj_parcellation_native(subj_dir, 
                              path_func, 
                              path_midthickness_l, 
                              path_midthickness_r,
                              path_brain_mask):
-    
+    """Performa  parcellation on a single subject in native space. Within their personal midthickness surface.
+    Args:
+        subj_dir (_type_): _description_
+        path_func (_type_): _description_
+        path_midthickness_l (_type_): _description_
+        path_midthickness_r (_type_): _description_
+        path_brain_mask (_type_): _description_
+    Raises:
+        ValueError: _description_
+    """
     print(f"Processing subject {subj_dir}")
     
     for hemisphere in ['lh', 'rh']:
@@ -110,6 +119,84 @@ def single_subj_parcellation(subj_dir,
 #                         path_midthickness_r,
 #                         path_brain_mask)
 
+
+def single_subj_parcellation_fsaverage(subj_dir, 
+                                       fsavg6_dir):
+    """
+    Need the following files: 
+    -fmri data stored in a nii.gz file
+    -left/right projection of fmri data into fsaverage6 space.
+    -the fsaverage6 folder from freesurfer
+    
+    Returns:
+        _type_: _description_
+    """
+    #%%
+    vol_fmri_file = r"D:\DATA_min_preproc\dataset_study1\sub-01\func\wsraPPS-FACE_S01_005_Rest.nii"
+    brain_mask_path = r"D:\DATA_min_preproc\dataset_study1\sub-01\sub01_freesurfer\mri\brainmask.mgz"
+    surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
+    surf_fmri_path = r"D:\DATA_min_preproc\dataset_study1\sub-01\func\sub01_lh.func.fsaverage6.mgh"
+    
+    surface_path_inflated = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.inflated"
+    surface_path_pial = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.pial"
+
+    # LOAD SURFACE DATA
+    surf_fmri_img = nib.load(surf_fmri_path)
+    surf_fmri = surf_fmri_img.get_fdata()
+    print(f"Data shape: {surf_fmri.shape}")
+    surf_fmri = np.squeeze(surf_fmri)
+    print(f"Surf data shape (2D): {surf_fmri.shape}")
+    # Normalize the data (MENDATORY)
+    surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
+    # LOAD VOLUME DATA
+    vol_fmri_img, resampled_mask_img, affine = load_volume_data(vol_fmri_file,
+                                                                brain_mask_path)
+        
+    
+    # LOAD FS6 DATA
+    coords, faces = nib.freesurfer.read_geometry(surface_path)
+    graph = build_mesh_graph(faces)
+    print(f"Number of vertices: {coords.shape[0]}")
+    print(f"Number of faces: {faces.shape[0]}")
+    
+    #%% Normalized the fmri data and extract the spatial modes
+    similarity_matrix = compute_similarity_matrix(surf_fmri, 
+                                                vol_fmri_img,
+                                                resampled_mask_img,
+                                                n_modes=380)
+    # visualize_brain_surface(coords, faces, similarity_matrix[0,:])
+    #%% Smooth the similarity matrix
+    print(f'smooth similarty matrix...')
+    sim_matrix_smooothed = smooth_surface(faces,
+                                        similarity_matrix, 
+                                        iterations=5)
+    del similarity_matrix # Save memory
+    visualize_brain_surface(coords, faces, sim_matrix_smooothed[0,:])
+    #%%
+    print(f'computing gradients...')
+    gradients = compute_gradients(graph,
+                                sim_matrix_smooothed,
+                                skip=20)
+    subj_dir = r"D:\DATA_min_preproc\dataset_study1\sub-01"
+    save_gradient_mgh(gradients,
+                      subj_dir + r"\outputs_surface\gradient_map_fsavg6",
+                      hemisphere='lh')
+    
+    gradient_smoothed = smooth_surface(faces,
+                                        gradients,
+                                        iterations=5)
+    #%%
+    # Compute the edge map
+    labels = watershed_by_flooding(graph, gradient_smoothed)
+    # Saving the labels
+    save_labels(labels, 
+                subj_dir + r"\outputs_surface\labels_fsavg6",
+                hemisphere = 'lh')
+    # visualize_brain_surface(coords, faces, labels)
+    
+    #%%
+    pass
+
 #%% Multi-subject parcellation
 def multi_subj_parcellation(dataset_dir):
     """
@@ -129,11 +216,11 @@ def multi_subj_parcellation(dataset_dir):
         path_midthickness_l = subj_dir + r"\sub" + subject + r"_freesurfer\surf\lh.midthickness.32k.surf.gii"
         path_brain_mask = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
         
-        single_subj_parcellation(subj_dir, 
-                                path_func, 
-                                path_midthickness_l, 
-                                path_midthickness_r,
-                                path_brain_mask)
+        single_subj_parcellation_native(subj_dir, 
+                                    path_func, 
+                                    path_midthickness_l, 
+                                    path_midthickness_r,
+                                    path_brain_mask)
         print('='*50)
         print('Success Parcellation of Subject : ', s)
         print('='*50)
