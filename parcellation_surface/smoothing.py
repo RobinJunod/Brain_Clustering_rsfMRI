@@ -61,7 +61,7 @@ def smooth_surface(faces, values, iterations=2):
 
     # Ensure inputs are numpy arrays
     faces = np.asarray(faces)
-    values = np.asarray(values)
+    values = np.asarray(values, dtype=np.float32)
     
     n_vertices = values.shape[0]
     
@@ -96,12 +96,11 @@ def smooth_surface(faces, values, iterations=2):
     smoothing_operator = W.dot(adjacency)
     
     # Step 6: Initialize smoothed_map
-    #smoothed_map = values.copy()
+    smoothed_map = values.copy()
     
     # Step 7: Perform iterative smoothing
     for _ in range(iterations):
-        #smoothed_map = smoothing_operator.dot(smoothed_map)
-        smoothed_map = smoothing_operator.dot(values)
+        smoothed_map = smoothing_operator.dot(smoothed_map)
     
     return smoothed_map
 

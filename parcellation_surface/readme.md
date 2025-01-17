@@ -101,7 +101,7 @@ mri_surf2surf \
   --surfreg sphere.reg
 
 mri_surf2surf \
-  --srcsubject sub01_freesurfer \
+  --srcsubject sub02_freesurfer \
   --trgsubject fsaverage6 \
   --hemi rh \
   --sval sub-02/func/sub02_rh.func.mgh \

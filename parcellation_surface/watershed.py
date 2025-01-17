@@ -122,6 +122,7 @@ def save_labels_mgh(labels,
     mgh_img = nib.freesurfer.mghformat.MGHImage(labels_reshaped, affine)
     # 5. Save the MGH file to disk.
     path = output_dir + f"\{hemisphere}_labels_{time}.mgh"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     nib.save(mgh_img, path)
 
 def load_labels_mgh(mgh_file_path):
@@ -131,30 +132,6 @@ def load_labels_mgh(mgh_file_path):
     data = mgh_image.get_fdata().squeeze()
     return data
 
-
-
-def save_labels(
-        labels,
-        output_dir,
-        hemisphere: Literal["lh", "rh"]
-    ) -> None:
-    """Save the labels into a .npy file
-    Args:
-        labels (np.array): the labels of the surface data
-        output_dir (string): dir for the labels output
-        hemisphere (strinf): the hemisphere of the surface data
-    """
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\{hemisphere}_labels_{time}.npy"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    np.save(path, labels)
-
-def load_labels(path):
-    """
-    Load the labels
-    """
-    labels = np.load(path)
-    return labels
 
 
 

@@ -26,22 +26,22 @@ def compute_RSFC_matrix(surf_fmri):
 
     return RSFC_matrix
 
-def compute_corr(surf_fmri, vol_fmri):
-    """
-    Compute the correlation between the surface data and the volume data
-    """
-    print("Computing the correlation between the surface data and the volume data...")
-    print("Shape of the surface data: ", surf_fmri.shape)
-    print("Shape of the volume data: ", vol_fmri.shape)
-    # Compute the correlation between the surface data and the volume data
-    corr = np.corrcoef(surf_fmri, vol_fmri) # TODO : complexify the case
-    corr[np.isnan(corr)] = 0 # Deal with NaN values
-    # r-z transform
-    RSFC_matrix = np.arctanh(corr)
-    # Remove inf values
-    RSFC_matrix[np.isinf(RSFC_matrix)] = 0
+# def compute_corr(surf_fmri, vol_fmri): TODO : remove if not used
+#     """
+#     Compute the correlation between the surface data and the volume data
+#     """
+#     print("Computing the correlation between the surface data and the volume data...")
+#     print("Shape of the surface data: ", surf_fmri.shape)
+#     print("Shape of the volume data: ", vol_fmri.shape)
+#     # Compute the correlation between the surface data and the volume data
+#     corr = np.corrcoef(surf_fmri, vol_fmri) # TODO : complexify the case
+#     corr[np.isnan(corr)] = 0 # Deal with NaN values
+#     # r-z transform
+#     RSFC_matrix = np.arctanh(corr)
+#     # Remove inf values
+#     RSFC_matrix[np.isinf(RSFC_matrix)] = 0
     
-    return RSFC_matrix
+#     return RSFC_matrix
 
 def compute_similarity_matrix(surf_fmri,
                               preproc_vol_fmri_img,

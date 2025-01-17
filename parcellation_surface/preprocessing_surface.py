@@ -1,14 +1,14 @@
-#%% Preprocessing o fthe surface data
-
 """
-Inputs:
-- Surface data (gifti format) from freesurfer
-- preprocessed fMRI data
-- normalized T1 image
+Module Name: preprocessing_surface.py
+Description:
+    This script is used to load and process volume and surface data from Freesurfer outputs.
+    It includes utilities for:
+      - Loading and preprocessing fMRI volume data
+      - Projecting fMRI volume data onto the cortical surface
+      - Converting fMRI volume data to spatial modes using SVD
 
-First convert to .gii
-Then create the midthickness surface with mris_expand
-Then reduce the number of vertex with mris_remesh
+Author: Robin Junod, robin.junod@epfl.ch
+Created: 2025-01-16
 
 """
 #%%
@@ -19,24 +19,6 @@ from datetime import datetime
 from nilearn import surface
 from nilearn.image import resample_img
 
-# Paths
-SUBJECT = r"01"
-
-SUBJ_DIR = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-path_func = SUBJ_DIR + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
-
-path_midthickness_r = SUBJ_DIR + r"\func\rh.midthickness.32k.surf.gii"
-path_midthickness_l = SUBJ_DIR + r"\func\lh.midthickness.32k.surf.gii"
-
-path_white_r = SUBJ_DIR + r"\func\rh.white.32k.surf.gii"
-path_white_l = SUBJ_DIR + r"\func\lh.white.32k.surf.gii"
-
-path_pial_r = SUBJ_DIR + r"\func\rh.pial.32k.surf.gii"
-path_pial_l = SUBJ_DIR + r"\func\lh.pial.32k.surf.gii"
-
-path_brain_mask = SUBJ_DIR + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
-
-path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.surf.gii"
 
 def load_volume_data(path_func, path_brain_mask):
     """
@@ -63,7 +45,8 @@ def load_volume_data(path_func, path_brain_mask):
         brain_mask_img,
         target_affine=affine_vol_fmri,
         target_shape=(79, 95, 79),
-        interpolation='nearest'
+        interpolation='nearest',
+        force_resample=True
     )
     # Convert to bool
     resampled_mask = resampled_mask_img.get_fdata()
@@ -73,43 +56,58 @@ def load_volume_data(path_func, path_brain_mask):
                                         header=resampled_mask_img.header)
 
     # Save the resampled mask
-    resampled_mask_img.to_filename(SUBJ_DIR + r"\anat\resampled_brain_mask.nii.gz")
+    resampled_path = os.path.join(os.path.dirname(path_brain_mask), "resampled_brain_mask.nii.gz")
+    resampled_mask_img.to_filename(resampled_path)
 
     # Normalize the time series of the volume data inside the mask
     vol_fmri_masked_ = vol_fmri[resampled_mask]
     vol_fmri_masked = np.zeros_like(vol_fmri)
     vol_fmri_masked[resampled_mask] = vol_fmri_masked_
-    # vol_fmri_img = nib.Nifti1Image(vol_fmri_masked, 
-    #                                 affine=fmri_img.affine, 
-    #                                 header=fmri_img.header)
-    # #%% Visualize the mask and the fmri data
-    # mean_fmri = np.mean(vol_fmri, axis=-1)
-    # mean_fmri_img = nib.Nifti1Image(mean_fmri, affine_vol_fmri)
-    # plotting.view_img(resampled_mask_img, 
-    #                 bg_img=mean_fmri_img)
     
     return vol_fmri_masked, resampled_mask, affine_vol_fmri
 
 
-def downsample_volume_fmri(vol_fmri_img,
-                           resampled_mask_img):
-    """This part is made to reduce the number of vertex of the volume data.
-    It will select the most important vertex of the volume data.
-    Args:
-        vol_fmri_img (_type_): _description_
+def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     """
-    pass
+    Projects fMRI volume data onto the cortical surface.
+
+    Args:
+        vol_fmri_img (nib.Nifti1Image): The fMRI volume image to be projected onto the surface.
+        path_midthickness_l (str): File path to the left hemisphere midthickness surface.
+        path_midthickness_r (str): File path to the right hemisphere midthickness surface.
+
+    Returns:
+        tuple: A tuple containing:
+            - surf_fmri_l (numpy.ndarray): The fMRI data projected onto the left hemisphere surface.
+            - surf_fmri_r (numpy.ndarray): The fMRI data projected onto the right hemisphere surface.
+    """
+    surf_fmri_l = surface.vol_to_surf(vol_fmri_img,
+                                      path_midthickness_l,
+                                      radius=6)
+    surf_fmri_r = surface.vol_to_surf(vol_fmri_img,
+                                      path_midthickness_r,
+                                      radius=6)
+    
+    if np.isnan(surf_fmri_l).any() or np.isnan(surf_fmri_r).any():
+        print("NaN values in the surface data")
+    
+    # Normalized the time series of the surface data
+    surf_fmri_l = (surf_fmri_l - np.mean(surf_fmri_l, axis=1, keepdims=True)) / np.std(surf_fmri_l, axis=1, keepdims=True)
+    surf_fmri_r = (surf_fmri_r - np.mean(surf_fmri_r, axis=1, keepdims=True)) / np.std(surf_fmri_r, axis=1, keepdims=True)
+    
+    return surf_fmri_l, surf_fmri_r
 
 
 def fmri_to_spatial_modes(vol_fmri, 
                           resampled_mask,
                           n_modes=380):
     """
-    Converts fMRI volume images to spatial modes using Singular Value Decomposition (SVD).
+    Converts fMRI volume data to spatial modes using Singular Value Decomposition (SVD).
 
     Args:
-        vol_fmri_img (Nifti1Image): 4D fMRI volume image.
-        resampled_mask_img (Nifti1Image): 3D resampled mask image.
+        vol_fmri (numpy.ndarray float): 4D fMRI volume data.
+        resampled_mask (numpy.ndarray bool): 3D resampled brain mask (bool).
+        n_modes (int): Number of spatial modes to retain.
 
     Returns:
         numpy.ndarray: 2D array of spatial modes.
@@ -130,36 +128,29 @@ def fmri_to_spatial_modes(vol_fmri,
     
     return U[:n_modes,:]
     
-    
-def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
-    """ 
-    Get the fmri data into the surface
-    """
-    # TODO : verify that the surface data has no NaN values
-    surf_fmri_l = surface.vol_to_surf(vol_fmri_img,
-                                      path_midthickness_l,
-                                      radius=6)
-    surf_fmri_r = surface.vol_to_surf(vol_fmri_img,
-                                      path_midthickness_r,
-                                      radius=6)
-    
-    if np.isnan(surf_fmri_l).any() or np.isnan(surf_fmri_r).any():
-        print("NaN values in the surface data")
-    
-    # Normalized the time series of the surface data
-    surf_fmri_l = (surf_fmri_l - np.mean(surf_fmri_l, axis=1, keepdims=True)) / np.std(surf_fmri_l, axis=1, keepdims=True)
-    surf_fmri_r = (surf_fmri_r - np.mean(surf_fmri_r, axis=1, keepdims=True)) / np.std(surf_fmri_r, axis=1, keepdims=True)
-    
-    return surf_fmri_l, surf_fmri_r
-
-
-
-
-
 
 
 
 #%% Run the code
 if __name__ == "__main__":
+    # Paths
+    SUBJECT = r"01"
+
+    SUBJ_DIR = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
+    path_func = SUBJ_DIR + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
+
+    path_midthickness_r = SUBJ_DIR + r"\func\rh.midthickness.32k.surf.gii"
+    path_midthickness_l = SUBJ_DIR + r"\func\lh.midthickness.32k.surf.gii"
+
+    path_white_r = SUBJ_DIR + r"\func\rh.white.32k.surf.gii"
+    path_white_l = SUBJ_DIR + r"\func\lh.white.32k.surf.gii"
+
+    path_pial_r = SUBJ_DIR + r"\func\rh.pial.32k.surf.gii"
+    path_pial_l = SUBJ_DIR + r"\func\lh.pial.32k.surf.gii"
+
+    path_brain_mask = SUBJ_DIR + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
+
+    path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.surf.gii"
+
     vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func, path_brain_mask)
     surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r)

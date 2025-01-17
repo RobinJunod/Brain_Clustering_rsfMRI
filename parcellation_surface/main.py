@@ -9,9 +9,8 @@ from preprocessing_surface import load_volume_data, fmri_vol2surf
 from similarity_matrix import compute_similarity_matrix
 from smoothing import smooth_surface
 from gradient import compute_gradients, build_mesh_graph, \
-                    load_gradient_map,save_gradient_map, save_gradient_mgh
-from watershed import watershed_by_flooding, save_labels,\
-                    load_labels, save_labels_mgh
+                     save_gradient_mgh
+from watershed import watershed_by_flooding, save_labels_mgh
 from visualization import visualize_brain_surface
 
 
@@ -82,7 +81,7 @@ def single_subj_parcellation_native(subj_dir,
 
         print(f'{hemisphere} computing similarity matrix...')
         similarity_matrix = compute_similarity_matrix(surf_fmri, 
-                                                    vol_fmri_img,
+                                                    vol_fmri,
                                                     resampled_mask_img,
                                                     n_modes=179)
         print(f'{hemisphere} smooth similarty matrix...')
@@ -95,9 +94,9 @@ def single_subj_parcellation_native(subj_dir,
                                     sim_matrix_smooothed,
                                     skip=20)
         
-        save_gradient_map(gradients,
-                          subj_dir + r"\outputs_surface\gradient_map",
-                          hemisphere)
+        save_gradient_mgh(gradients,
+                        subj_dir + r"\outputs_surface\gradient_map",
+                        hemisphere=hemisphere)
         print(f'{hemisphere} gradients saved...')
         gradient_smoothed = smooth_surface(faces,
                                         gradients,
@@ -107,9 +106,9 @@ def single_subj_parcellation_native(subj_dir,
         # Compute the edge map
         labels = watershed_by_flooding(graph, gradient_smoothed)
         # Saving the labels
-        save_labels(labels, 
-                    subj_dir + r"\outputs_surface\labels",
-                    hemisphere)
+        save_labels_mgh(labels,
+                        subj_dir + r"\outputs_surface\labels",
+                        hemisphere =hemisphere)
         print(f'{hemisphere} parcellation map saved...')
         visualize_brain_surface(coords, faces, labels)
 
@@ -138,61 +137,67 @@ def single_subj_parcellation_fsaverage(subj_dir,
     # surface_path_pial = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.pial"
     
     subject = r"01"
-    subj_dir = r"D:\DATA_min_preproc\dataset_study1\sub-" + subject
-    vol_fmri_file = subj_dir + r"\func\wsraPPS-FACE_S" + subject + r"_005_Rest.nii"
-    brain_mask_path = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
-    surf_fmri_path = subj_dir + r"\func\sub" + subject + r"_lh.func.fsaverage6.mgh"
-    
+    hemisphere = r'rh'
+    for s in range(1,19):
+        subject = f"{s:02d}"
+        print(f"Processing subject {subject}")
+        for hemisphere in ['lh', 'rh']:
+            # TODO : WARNING CUSTOMIZE THE PATH BASED ON YOUR DATA
+            subj_dir = r"D:\DATA_min_preproc\dataset_study1\sub-" + subject
+            vol_fmri_file = subj_dir + r"\func\wsraPPS-FACE_S" + subject + r"_005_Rest.nii"
+            brain_mask_path = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
+            surf_fmri_path = subj_dir + r"\func\sub" + subject + f"_{hemisphere}.func.fsaverage6.mgh"
+            
 
-    # LOAD SURFACE DATA
-    surf_fmri_img = nib.load(surf_fmri_path)
-    surf_fmri = surf_fmri_img.get_fdata()
-    surf_fmri = np.squeeze(surf_fmri)
-    surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) \
-                / np.std(surf_fmri, axis=1, keepdims=True) # Normalize the data (MENDATORY)
-    print(f"Surf data shape (2D): {surf_fmri.shape}")
-    # LOAD VOLUME DATA
-    vol_fmri, resampled_mask, affine = load_volume_data(vol_fmri_file,
-                                                        brain_mask_path)
-    print(f"Volume data shape: {vol_fmri.shape}")
-    # LOAD FS6 DATA
-    coords, faces = nib.freesurfer.read_geometry(surface_path)
-    graph = build_mesh_graph(faces)
-    print(f"Number of vertices: {coords.shape[0]}")
-    print(f"Number of faces: {faces.shape[0]}")
-    
-    #%% Normalized the fmri data and extract the spatial modes
-    similarity_matrix = compute_similarity_matrix(surf_fmri, 
-                                                vol_fmri,
-                                                resampled_mask,
-                                                n_modes=380)
-    # visualize_brain_surface(coords, faces, similarity_matrix[0,:])
-    #%% Smooth the similarity matrix
-    print(f'smooth similarty matrix...')
-    sim_matrix_smooothed = smooth_surface(faces,
-                                        similarity_matrix, 
-                                        iterations=2)
-    del similarity_matrix # Save memory
-    #%%
-    print(f'computing gradients...')
-    gradients = compute_gradients(graph,
-                                sim_matrix_smooothed,
-                                skip=40)
-
-    save_gradient_mgh(gradients,
-                      subj_dir + r"\outputs_surface\gradient_map_fsavg6",
-                      hemisphere='lh')
-    
-    gradient_smoothed = smooth_surface(faces,
-                                        gradients,
-                                        iterations=2)
-    #%%
-    # Compute the edge map
-    labels = watershed_by_flooding(graph, gradient_smoothed)
-    # Saving the labels
-    save_labels_mgh(labels, 
-                    subj_dir + r"\outputs_surface\labels_fsavg6",
-                    hemisphere = 'lh')
+            # LOAD SURFACE DATA
+            surf_fmri_img = nib.load(surf_fmri_path)
+            surf_fmri = surf_fmri_img.get_fdata()
+            surf_fmri = np.squeeze(surf_fmri)
+            surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) \
+                        / np.std(surf_fmri, axis=1, keepdims=True) # Normalize the data (MENDATORY)
+            print(f"Surf data shape (2D): {surf_fmri.shape}")
+            # LOAD VOLUME DATA
+            vol_fmri, resampled_mask, affine = load_volume_data(vol_fmri_file,
+                                                                brain_mask_path)
+            print(f"Volume data shape: {vol_fmri.shape}")
+            # LOAD FS6 DATA
+            coords, faces = nib.freesurfer.read_geometry(surface_path)
+            graph = build_mesh_graph(faces)
+            print(f"Number of vertices: {coords.shape[0]}")
+            print(f"Number of faces: {faces.shape[0]}")
+            
+            # Normalized the fmri data and extract the spatial modes
+            similarity_matrix = compute_similarity_matrix(surf_fmri, 
+                                                        vol_fmri,
+                                                        resampled_mask,
+                                                        n_modes=380)
+            # visualize_brain_surface(coords, faces, similarity_matrix[0,:])
+            # Smooth the similarity matrix
+            print(f'smooth similarty matrix...')
+            sim_matrix_smooothed = smooth_surface(faces,
+                                                  similarity_matrix, 
+                                                  iterations=5)
+            del similarity_matrix # Save memory
+            
+            print(f'computing gradients...')
+            gradients = compute_gradients(graph,
+                                        sim_matrix_smooothed,
+                                        skip=40)
+            # save the gradient map
+            save_gradient_mgh(gradients,
+                            subj_dir + r"\outputs_surface\gradient_map_fsavg6_highsmooth",
+                            hemisphere=hemisphere)
+            
+            gradient_smoothed = smooth_surface(faces,
+                                               gradients,
+                                               iterations=10)
+            
+            # Compute the edge map
+            labels = watershed_by_flooding(graph, gradient_smoothed)
+            # Saving the labels
+            save_labels_mgh(labels,
+                            subj_dir + r"\outputs_surface\labels_fsavg6_highsmooth",
+                            hemisphere =hemisphere)
     # visualize_brain_surface(coords, faces, labels)
     
     #%%

@@ -62,8 +62,6 @@ def compute_gradients(graph, similarity_matrix, skip=10):
     return gradients
 
 
-
-
 # Precise but costly method
 def compute_gradient_magnitudes(faces, coords, values): 
     """
@@ -141,28 +139,6 @@ def compute_gradient_magnitudes(faces, coords, values):
     return grad_magnitudes
 
 
-def save_gradient_map(
-        gradient_map,
-        output_dir,
-        hemisphere: Literal["lh", "rh"]
-    ) -> None:
-    """Save the gradient map into a .npy file
-    Args:
-        gradient_map (np.array): the gradient in order to the coords from the triangles surface
-        output_dir (string): dir for grad output
-        hemisphere (strinf): the hemisphere of the surface data
-    """
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\{hemisphere}_gradient_map_{time}.npy"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    np.save(path, gradient_map)
-
-def load_gradient_map(path):
-    """Load the gradient map
-    """
-    gradient_map = np.load(path)
-    return gradient_map
-
 def save_gradient_mgh(gradient_map,
                         output_dir,
                         hemisphere: Literal["lh", "rh"]):
@@ -182,15 +158,13 @@ def save_gradient_mgh(gradient_map,
     mgh_img = nib.freesurfer.mghformat.MGHImage(gradient_reshaped, affine)
     # 5. Save the MGH file to disk.
     path = output_dir + f"\{hemisphere}_gradient_map_{time}.mgh"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     nib.save(mgh_img, path)
 
 
 def load_gradient_mgh(mgh_file_path):
-
     # Load the MGH image
     mgh_image = nib.load(mgh_file_path)
-    
     # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
     data = mgh_image.get_fdata().squeeze()
-
     return data
