@@ -138,7 +138,7 @@ def single_subj_parcellation_fsaverage(subj_dir,
     
     subject = r"01"
     hemisphere = r'rh'
-    for s in range(1,19):
+    for s in range(5,19):
         subject = f"{s:02d}"
         print(f"Processing subject {subject}")
         for hemisphere in ['lh', 'rh']:

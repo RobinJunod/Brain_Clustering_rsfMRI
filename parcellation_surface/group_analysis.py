@@ -21,6 +21,9 @@ import glob
 import numpy as np
 from typing import Literal # Requires Python 3.8+
 from visualization import visualize_brain_surface
+from smoothing import smooth_surface
+from watershed import watershed_by_flooding
+from gradient import build_mesh_graph
 from gradient import load_gradient_mgh
 from watershed import load_labels_mgh
 
@@ -38,7 +41,7 @@ def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
                            ):
     list_parc = []
     list_grad = []
-    for s in range(1,4): # TODO : customize the range
+    for s in range(1,19): # TODO : customize the range
         # print('grad map and parcellation map of subject : ', s)
         subject = f"{s:02d}"
         # Path to the subject directory
@@ -74,6 +77,7 @@ def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
     # extract the edges of the group parcellation
     return gradient_list, parcel_list
 
+
 def dice_coefficient(y_true, y_pred):
     """
     Compute the Dice coefficient between two binary masks.
@@ -107,7 +111,8 @@ def parcel_correlation(group_parcel, surf_fmri):
     n_parcels = np.max(group_parcel) + 1
     parcel_data = np.zeros((n_parcels, surf_fmri.shape[1]))
     for i in range(n_parcels):
-        parcel_data[i] = np.mean(surf_fmri[group_parcel == i], axis=0)
+        parcel_data[i] = np.mean(surf_fmri[np.where(group_parcel==i)], axis=0)
+        print(np.isnan(parcel_data[i]).any())
     # Compute the correlation between parcels
     parcel_corr = np.corrcoef(parcel_data)
     return parcel_corr
@@ -131,11 +136,108 @@ def corr2graph(correlation_matrix):
 #%% TODO : try to perform watershed on gradient and on parcels
 if __name__ == "__main__":
     import nibabel as nib
-    surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
+    # surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
+    surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.inflated"
     coords, faces = nib.freesurfer.read_geometry(surface_path)
+    lh_fmri_path = r"D:\DATA_min_preproc\dataset_study1\sub-01\func\sub01_lh.func.fsaverage6.mgh"
+    # rh_fmri_path = r"D:\DATA_min_preproc\dataset_study1\sub-01\func\sub01_rh.func.fsaverage6.mgh"
+    surf_fmri_img = nib.load(lh_fmri_path)
+    surf_fmri = surf_fmri_img.get_fdata()
+    
     gradient_list, parcel_list = extracrt_gradparc_list(hemisphere='lh')
     # print(group_gradient.shape)
     # print(group_parc_bound.shape)
-    # visualize_brain_surface(coords, faces, group_gradient, title="Group Gradient")
+    visualize_brain_surface(coords, faces, gradient_list[0], title="Group Gradient")
+    
+    # Compute group parcellation
+    group_gradient = gradient_list.mean(axis=0)
+    group_gradient_smoothed = smooth_surface(faces, group_gradient,  iterations=10)
+    visualize_brain_surface(coords, faces, group_gradient_smoothed, title="Group Gradient")
+    # Labels the group gradient map
+    graph = build_mesh_graph(faces)
+    group_parc = watershed_by_flooding(graph, group_gradient_smoothed)
+    group_boundary = (group_parc<0)*1
+    visualize_brain_surface(coords, faces, group_boundary, title="Group Bounardy")
+    
+    # Compute dice coefficient
+    dice_coef_list = []
+    for i in range(18):
+        dice = dice_coefficient(group_parc, parcel_list[i])
+        dice_coef_list.append(dice)
+        print(f"Subject {i+1} Dice coefficient: {dice}")
+        
+    # Compare group dice coefficient
+    groupA_mean = gradient_list[:8,:].mean(axis=0)
+    groupA_mean = smooth_surface(faces, groupA_mean,  iterations=10)
+    groupA_parc = watershed_by_flooding(graph, groupA_mean)
+    groupA_boundary = (groupA_parc<0)*1
+    
+    groupB_mean = gradient_list[8:,:].mean(axis=0)
+    groupB_mean = smooth_surface(faces, groupB_mean,  iterations=10)
+    groupB_parc = watershed_by_flooding(graph, groupB_mean)
+    groupB_boundary = (groupB_parc<0)*1
+    
+    #%% Load all of the surf fmri data
+    surf_fmri_list = []
+    dataset_dir = r"D:\DATA_min_preproc\dataset_study1"
+    for i in range(1,19):
+        subject = f"{i:02d}"
+        subj_dir = dataset_dir + r"\sub-" + subject
+        lh_fmri_path = subj_dir + r"\func\sub" + subject + "_lh.func.fsaverage6.mgh"
+        surf_fmri_img = nib.load(lh_fmri_path)
+        surf_fmri = surf_fmri_img.get_fdata()
+        surf_fmri = np.squeeze(surf_fmri)
+        surf_fmri_list.append(surf_fmri)
+    
+    sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[0])
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(12, 10))  # Adjust figure size for better visibility
+    sns.heatmap(
+        sub1_parccorr, 
+        cmap="coolwarm",  # Colormap to highlight intensity
+        annot=False,  # Set to True if you want values displayed in the cells
+        fmt=".2f",  # Format for annotations (if enabled)
+        cbar=True  # Show color bar
+    )
+    plt.title("Connectivity of Subj1 with parcels", fontsize=16)
+    plt.xlabel("Parcel idx")
+    plt.ylabel("Parcel idx")
+    plt.show()
 # %%
 
+# # A boxplot fucntion with individual data points
+# import seaborn as sns
+# import matplotlib.pyplot as plt
+# # Set the style for a cleaner look
+# sns.set(style="whitegrid", palette="muted")
+# # Create the plot
+# values = dice_coef_list
+# plt.figure(figsize=(3, 5))
+# # Create a boxplot with more elegant styling
+# sns.boxplot(data=values, color='skyblue', width=0.5, fliersize=8, linewidth=2, 
+#             boxprops=dict(facecolor='skyblue', edgecolor='black'),
+#             whiskerprops=dict(color='black', linewidth=1.5),
+#             capprops=dict(color='black', linewidth=1.5),
+#             medianprops=dict(color='darkred', linewidth=2))
+
+# # Overlay individual data points with customized aesthetics
+# sns.stripplot(data=values, color='darkblue', jitter=True, size=8, edgecolor='white', linewidth=1)
+# # Add title and labels
+# plt.title('Single subject parcellation Vs Group average', fontsize=16, fontweight='bold')
+# plt.ylabel('Dice coefficient', fontsize=14)
+# plt.xlabel('', fontsize=12)  # Remove x-axis label
+# # Remove the x-axis ticks as there is only one group
+# plt.xticks([])
+# # Customize grid lines for a cleaner look
+# plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+# # Show the plot
+# plt.tight_layout()
+# plt.show()
+
+
+
+# IDEA TO IMPLEMENT IN ORDER TO IMPROVE THE PARCELLATION NAD RESULTS FOR THE GRADIETN MAP
+# FILTER THE SIMILARITY MAP TO HIGHLIGHT HIGH SIMILARTIY AREA AND EXTRACT THIS BOUNDARY
+
+# %%

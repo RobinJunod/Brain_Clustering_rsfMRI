@@ -113,7 +113,6 @@ def save_labels_mgh(labels,
         hemisphere (strinf): the hemisphere of the surface data
     """
     time = datetime.now().strftime("%Y%m%d%H%M%S")
-    path = output_dir + f"\{hemisphere}_labels_{time}.npy"
     # Reshape the data to match the FreeSurfer .mgh format expectations
     labels_reshaped = labels.reshape((len(labels), 1, 1)).astype(np.float32)
     # 3. Create an identity affine (often used for surface data).

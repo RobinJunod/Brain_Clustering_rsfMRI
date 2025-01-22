@@ -100,7 +100,8 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
 
 def fmri_to_spatial_modes(vol_fmri, 
                           resampled_mask,
-                          n_modes=380):
+                          n_modes=380,
+                          low_variance_threshold = 0.5):
     """
     Converts fMRI volume data to spatial modes using Singular Value Decomposition (SVD).
 
@@ -116,7 +117,9 @@ def fmri_to_spatial_modes(vol_fmri,
     mask_idx = np.where(resampled_mask)
     # Create the spatial modes
     fmri_masked = vol_fmri[mask_idx]
-    # keep the voxel with more 50% of the variance 
+    # Remove voxels with low variance (thresholding by the variance of each voxel's time series)
+    variance = np.var(fmri_masked, axis=1)
+    fmri_masked = fmri_masked[variance > low_variance_threshold]
     
     fmri_m_normalized = (fmri_masked - np.mean(fmri_masked, axis=1, keepdims=True)) / np.std(fmri_masked, axis=1, keepdims=True)
     keep = ~np.isnan(fmri_m_normalized).any(axis=1) & ~np.isinf(fmri_m_normalized).any(axis=1)
@@ -129,8 +132,34 @@ def fmri_to_spatial_modes(vol_fmri,
     return U[:n_modes,:]
     
 
+def congrads_dim_reduction(vol_fmri, resampled_mask, low_variance_threshold=0.5):
+    def pca(X):
+        from scipy.linalg import svd
 
+        # Center X by subtracting off column means
+        X -= np.mean(X,0)
 
+        # The principal components are the eigenvectors of S = X'*X./(n-1), but computed using SVD
+        [U,sigma,V] = svd(X,full_matrices=False)
+
+        # Project X onto the principal component axes
+        Y = U*sigma
+
+        # Convert the singular values to eigenvalues 
+        sigma /= np.sqrt(X.shape[0]-1)
+        evals = np.square(sigma)
+        
+        return V, Y, evals
+    
+    mask_idx = np.where(resampled_mask)
+    # Create the spatial modes
+    fmri_masked = vol_fmri[mask_idx]
+    # Remove voxels with low variance (thresholding by the variance of each voxel's time series)
+    variance = np.var(fmri_masked, axis=1)
+    fmri_masked = fmri_masked[variance > low_variance_threshold]
+    [evecs,Bhat,evals] = pca(fmri_masked)
+    # PLEASE TELL ME THAT IT IS STUPID PLEASSEEEE
+    
 #%% Run the code
 if __name__ == "__main__":
     # Paths
@@ -152,5 +181,11 @@ if __name__ == "__main__":
 
     path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.surf.gii"
 
-    vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func, path_brain_mask)
-    surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r)
+    vol_fmri, resampled_mask, affine = load_volume_data(path_func, path_brain_mask)
+    surf_fmri_l, surf_fmri_r = fmri_vol2surf(nib.load(path_func), path_midthickness_l, path_midthickness_r)
+    
+    modes = fmri_to_spatial_modes(vol_fmri, 
+                          resampled_mask,
+                          n_modes=380,
+                          low_variance_threshold = 0.5)
+# %%
