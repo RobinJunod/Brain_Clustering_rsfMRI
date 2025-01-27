@@ -41,10 +41,10 @@ def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
                            ):
     list_parc = []
     list_grad = []
-    for s in range(1,19): # TODO : customize the range
+    for s in range(1,19): # (modify as needed)
         # print('grad map and parcellation map of subject : ', s)
         subject = f"{s:02d}"
-        # Path to the subject directory
+        # Path to the subject directory (modify as needed)
         subj_dir = dataset_dir + r"\sub-" + subject
         grad_dir = subj_dir + r"\outputs_surface\gradient_map_fsavg6_highsmooth"
         parcel_dir = subj_dir + r"\outputs_surface\labels_fsavg6_highsmooth"
@@ -91,6 +91,9 @@ def dice_coefficient(y_true, y_pred):
     Returns:
         float : Dice coefficient.
     """
+    # test the the inputs are 0,1 arrays
+    assert np.array_equal(np.unique(y_true), [0, 1])
+    assert np.array_equal(np.unique(y_pred), [0, 1])
     intersection = np.sum(y_true * y_pred)
     union = np.sum(y_true) + np.sum(y_pred)
     if union == 0:
@@ -107,13 +110,25 @@ def parcel_correlation(group_parcel, surf_fmri):
     Returns:
         np.ndarray: A 2D array representing the correlation matrix between the parcels.
     """
-    # Group the fmri data into parcels
-    n_parcels = np.max(group_parcel) + 1
+    # Get unique parcel indices greater than 0 (non-zero parcels)
+    parcel_idx = np.unique(group_parcel[group_parcel > 0])
+    n_parcels = len(parcel_idx)
+    
+    # Initialize an array to store mean fMRI data for each parcel
     parcel_data = np.zeros((n_parcels, surf_fmri.shape[1]))
-    for i in range(n_parcels):
-        parcel_data[i] = np.mean(surf_fmri[np.where(group_parcel==i)], axis=0)
-        print(np.isnan(parcel_data[i]).any())
-    # Compute the correlation between parcels
+    
+    # For each parcel, calculate the mean fMRI time series across vertices in the parcel
+    for i, idx in enumerate(parcel_idx):
+        # Boolean mask for vertices in the current parcel
+        mask = group_parcel == idx
+        # Compute the mean fMRI data for this parcel and store it
+        parcel_data[i] = np.mean(surf_fmri[mask], axis=0)
+        
+        # Check for NaN values in the computed parcel data
+        if np.isnan(parcel_data[i]).any():
+            print(f'Parcel {idx} has NaN values')
+    
+    # Compute and return the correlation matrix between parcels
     parcel_corr = np.corrcoef(parcel_data)
     return parcel_corr
 
@@ -159,10 +174,10 @@ if __name__ == "__main__":
     group_boundary = (group_parc<0)*1
     visualize_brain_surface(coords, faces, group_boundary, title="Group Bounardy")
     
-    # Compute dice coefficient
+    # Compute dice coefficient with the boundaries
     dice_coef_list = []
     for i in range(18):
-        dice = dice_coefficient(group_parc, parcel_list[i])
+        dice = dice_coefficient(group_boundary, parcel_list[i])
         dice_coef_list.append(dice)
         print(f"Subject {i+1} Dice coefficient: {dice}")
         
@@ -188,7 +203,7 @@ if __name__ == "__main__":
         surf_fmri = surf_fmri_img.get_fdata()
         surf_fmri = np.squeeze(surf_fmri)
         surf_fmri_list.append(surf_fmri)
-    
+    #%%
     sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[0])
     import seaborn as sns
     import matplotlib.pyplot as plt
@@ -200,44 +215,70 @@ if __name__ == "__main__":
         fmt=".2f",  # Format for annotations (if enabled)
         cbar=True  # Show color bar
     )
-    plt.title("Connectivity of Subj1 with parcels", fontsize=16)
+    plt.title("Connectivity of Subj1 with Parcels", fontsize=16)
     plt.xlabel("Parcel idx")
     plt.ylabel("Parcel idx")
+    
+    # %% Hyerarchical clustering
+    import scipy.cluster.hierarchy as sch
+    import seaborn as sns
+    # Compute the correlation matrix
+    corr_matrix = sub1_parccorr
+    # Compute the linkage matrix
+    linkage_matrix = sch.linkage(corr_matrix, method='ward')
+    # Plot the dendrogram
+    plt.figure(figsize=(10, 8))
+    dendrogram = sch.dendrogram(linkage_matrix, no_plot=True)
+    cluster_idxs = dendrogram['leaves']
+    # Reorder the correlation matrix
+    reordered_corr_matrix = corr_matrix[np.ix_(cluster_idxs, cluster_idxs)]
+    # Plot the reordered correlation matrix
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(reordered_corr_matrix, cmap="coolwarm", square=True)
+    plt.title('Reordered Parcel Correlation Matrix')
     plt.show()
+
+    #%% Select a cluster of interest
+    new_to_original = {new_idx: original_idx for new_idx, original_idx in enumerate(cluster_idxs)}
+    # Custom the range of interest
+    new_to_original_range = [new_to_original[new_idx] for new_idx in range(70, 88 + 1) if new_idx in new_to_original]
+    parc_network = np.isin(group_parc, new_to_original_range)*1 # 1 if in the cluster, 0 otherwise
+    visualize_brain_surface(coords, faces, parc_network, title="Parcel Network")
+    
 # %%
+    # A boxplot fucntion with individual data points
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    # Set the style for a cleaner look
+    # Create the plot
+    values = dice_coef_list
+    # Initialize the figure with appropriate size
+    plt.figure(figsize=(4, 6))
 
-# # A boxplot fucntion with individual data points
-# import seaborn as sns
-# import matplotlib.pyplot as plt
-# # Set the style for a cleaner look
-# sns.set(style="whitegrid", palette="muted")
-# # Create the plot
-# values = dice_coef_list
-# plt.figure(figsize=(3, 5))
-# # Create a boxplot with more elegant styling
-# sns.boxplot(data=values, color='skyblue', width=0.5, fliersize=8, linewidth=2, 
-#             boxprops=dict(facecolor='skyblue', edgecolor='black'),
-#             whiskerprops=dict(color='black', linewidth=1.5),
-#             capprops=dict(color='black', linewidth=1.5),
-#             medianprops=dict(color='darkred', linewidth=2))
-
-# # Overlay individual data points with customized aesthetics
-# sns.stripplot(data=values, color='darkblue', jitter=True, size=8, edgecolor='white', linewidth=1)
-# # Add title and labels
-# plt.title('Single subject parcellation Vs Group average', fontsize=16, fontweight='bold')
-# plt.ylabel('Dice coefficient', fontsize=14)
-# plt.xlabel('', fontsize=12)  # Remove x-axis label
-# # Remove the x-axis ticks as there is only one group
-# plt.xticks([])
-# # Customize grid lines for a cleaner look
-# plt.grid(True, axis='y', linestyle='--', alpha=0.7)
-# # Show the plot
-# plt.tight_layout()
-# plt.show()
+    # Create a boxplot with enhanced styling
+    sns.boxplot( data=values, color="skyblue", width=0.5, showfliers=False, linewidth=2,
+                whiskerprops=dict(color="black", linewidth=1.5),
+                capprops=dict(color="black", linewidth=1.5),
+                medianprops=dict(color="darkred", linewidth=2),
+                boxprops=dict(facecolor="lightblue", edgecolor="black", linewidth=1.5)
+    )
+    # Overlay individual data points with jitter for better visibility
+    sns.stripplot(data=values,color="darkblue",jitter=True,size=7,
+                edgecolor="white",linewidth=1,alpha=0.8
+    )
+    # Add title and labels with improved formatting
+    plt.title("Single Subject Parcellation vs Group Average", fontsize=16, fontweight="bold", pad=15)
+    plt.ylabel("Dice Coefficient", fontsize=14)
+    plt.xlabel("", fontsize=12)  # Remove x-axis label
+    # Remove x-axis ticks for clarity since there's only one group
+    plt.xticks([])
+    # Customize grid lines for a cleaner look
+    plt.grid(True, axis="y", linestyle="--", alpha=0.6)
+    # Optimize layout and display the plot
+    plt.tight_layout()
+    plt.show()
 
 
 
-# IDEA TO IMPLEMENT IN ORDER TO IMPROVE THE PARCELLATION NAD RESULTS FOR THE GRADIETN MAP
-# FILTER THE SIMILARITY MAP TO HIGHLIGHT HIGH SIMILARTIY AREA AND EXTRACT THIS BOUNDARY
 
 # %%

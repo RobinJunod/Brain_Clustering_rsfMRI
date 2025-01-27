@@ -63,7 +63,7 @@ mris_inflate -n 3 -dist 0.1 -no-save-sulc rh.midthickness.32k.surf.gii rh.midthi
 ```
 
 
-## Imporatn for group analysis
+## Very Important Step for group analysis (projection of fMRI into normalized fsavg6 surface)
 cd /mnt/d/DATA_min_preproc/dataset_study1
 export SUBJECTS_DIR=/home/rjunod/freesurfer/study1
 
