@@ -46,6 +46,39 @@ def visualize_brain_surface(vertices,
 
     return view
 
+# Pyvista version for statistical map plotting on the surface
+import pyvista as pv
+import numpy as np
+def visualize_brain_pyvista(coords, faces, values, cmap="viridis"):
+    """
+    Plot a surface using PyVista with interactive rotation for different views.
+    
+    Parameters:
+    - coords (numpy.ndarray): Array of vertex coordinates, shape (N, 3).
+    - faces (numpy.ndarray): Array of faces, shape (M, 3) or (M, 4) depending on triangle/quadrilateral meshes.
+    - values (numpy.ndarray): Array of scalar values associated with each vertex, shape (N,).
+    - cmap (str): Colormap for the surface visualization. Default is 'viridis'.
+    """
+    # Ensure faces are in the format PyVista expects
+    if faces.shape[1] == 3:  # Triangular faces
+        faces = np.hstack([np.full((faces.shape[0], 1), 3), faces])
+    elif faces.shape[1] == 4:  # Quadrilateral faces
+        faces = np.hstack([np.full((faces.shape[0], 1), 4), faces])
+    else:
+        raise ValueError("Faces should have either 3 or 4 vertices per face.")
+
+    # Create the PyVista mesh
+    mesh = pv.PolyData(coords, faces)
+    mesh.point_data["values"] = values  # Add scalar values to the mesh
+
+    # Set up the PyVista plotter
+    plotter = pv.Plotter()
+    plotter.add_mesh(mesh, scalars="values", cmap=cmap, show_scalar_bar=True)
+    plotter.show_axes()  # Show axes for reference
+    plotter.view_isometric()  # Set an initial isometric view
+
+    # Display the interactive plot
+    plotter.show()
 
 
 # Visualization to plot two different surfaces

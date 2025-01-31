@@ -32,10 +32,10 @@ from watershed import load_labels_mgh
 
 
 def extract_timestamp(fpath):
-    fname = os.path.basename(fpath)  # e.g. "left_labels_20240101123045.npy"
-    # Split by "_" -> ["left", "labels", "20240101123045.npy"]
-    # The last part has "20240101123045.npy"
-    time_str = fname.split('_')[-1].replace(".npy", "")
+    fname = os.path.basename(fpath)  # e.g. "left_labels_20240101123045.mgh"
+    # Split by "_" -> ["left", "labels", "20240101123045.mgh"]
+    # The last part has "20240101123045.mgh"
+    time_str = fname.split('_')[-1].replace(".mgh", "")
     return time_str
 
 def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
@@ -181,30 +181,30 @@ def hierarchical_corr_mtrx(corr_matrix, show=True):
         plt.show()
     return reordered_corr_matrix
 
-def spectral_corr_mtrx(corr_matrix, n_clusters=7, show=True):
-    from sklearn.cluster import SpectralClustering
-    import seaborn as sns
-    # Ensure the similarity matrix is positive (if necessary)
-    similarity_matrix = (corr_matrix + 1) / 2  # Rescale to [0, 1]
-    # Spectral clustering
-    clustering = SpectralClustering(
-        n_clusters=n_clusters,
-        affinity='precomputed',  # Use the similarity matrix directly
-        assign_labels='kmeans', # Use k-means for final clustering step
-        random_state=42
-    )
-    cluster_labels = clustering.fit_predict(similarity_matrix)
-    # Get the sorted indices based on clustering results
-    sorted_idx = np.argsort(cluster_labels)
-    # Reorder the correlation matrix
-    reordered_corr_matrix = corr_matrix[np.ix_(sorted_idx, sorted_idx)]
-    if show:
-        # Plot the reordered correlation matrix
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(reordered_corr_matrix, cmap="coolwarm", square=True)
-        plt.title(f'Reordered Correlation Matrix with {n_clusters} Clusters')
-        plt.show()
-    return reordered_corr_matrix
+# def spectral_corr_mtrx(corr_matrix, n_clusters=7, show=True):
+#     from sklearn.cluster import SpectralClustering
+#     import seaborn as sns
+#     # Ensure the similarity matrix is positive (if necessary)
+#     similarity_matrix = (corr_matrix + 1) / 2  # Rescale to [0, 1]
+#     # Spectral clustering
+#     clustering = SpectralClustering(
+#         n_clusters=n_clusters,
+#         affinity='precomputed',  # Use the similarity matrix directly
+#         assign_labels='kmeans', # Use k-means for final clustering step
+#         random_state=42
+#     )
+#     cluster_labels = clustering.fit_predict(similarity_matrix)
+#     # Get the sorted indices based on clustering results
+#     sorted_idx = np.argsort(cluster_labels)
+#     # Reorder the correlation matrix
+#     reordered_corr_matrix = corr_matrix[np.ix_(sorted_idx, sorted_idx)]
+#     if show:
+#         # Plot the reordered correlation matrix
+#         plt.figure(figsize=(10, 8))
+#         sns.heatmap(reordered_corr_matrix, cmap="coolwarm", square=True)
+#         plt.title(f'Reordered Correlation Matrix with {n_clusters} Clusters')
+#         plt.show()
+#     return reordered_corr_matrix
 
 
 def boxplot_values(values, 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
 
     #%% Compute the corr between parcels
     sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[9])
-    reordered_corr_matrix = spectral_corr_mtrx(sub1_parccorr, show=True)
+    reordered_corr_matrix = hierarchical_corr_mtrx(sub1_parccorr, show=True)
     
 
     #%% Select a cluster of interest

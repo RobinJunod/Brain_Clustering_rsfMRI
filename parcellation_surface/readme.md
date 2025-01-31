@@ -109,3 +109,23 @@ mri_surf2surf \
   --surfreg sphere.reg
 ```
 
+### Parcellation run example
+
+
+└── subjects_dir/
+    ├── sub-01/
+    │   ├── anat/
+    │   │   └── t1_file.nii.gz
+    │   ├── func/
+    │   │   ├── conn_t2*_file.nii.gz
+    │   │   ├── surf_conn_t2*_lh_fsavg.func.mgh
+    │   │   └── surf_conn_t2*_rh_fsavg.func.mgh
+    │   └── sub01_freesurfer/
+    │       └── recon-all ouputs for sub 01
+    ├── sub-02/
+    ├── sub-03/
+    └── sub-03/
+
+```bash
+  python run_pipeline.py --config config.yaml --subjects 01 02 03 04 05
+```

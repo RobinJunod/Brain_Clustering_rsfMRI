@@ -1,6 +1,5 @@
 """
 Watershed by flooding algorithm for surface mesh segmentation.
-
 """
 import os
 from typing import Literal
@@ -105,7 +104,8 @@ def watershed_by_flooding(graph, values):
 
 def save_labels_mgh(labels,
                     output_dir,
-                    hemisphere: Literal["lh", "rh"]):
+                    hemisphere: Literal["lh", "rh"],
+                    name = "labels"):
     """Save the gradient map into a .mgh file
     Args:
         labels (np.array): the labels in order to the coords from the triangles surface
@@ -120,7 +120,7 @@ def save_labels_mgh(labels,
     # 4. Construct the MGH image.
     mgh_img = nib.freesurfer.mghformat.MGHImage(labels_reshaped, affine)
     # 5. Save the MGH file to disk.
-    path = output_dir + f"\{hemisphere}_labels_{time}.mgh"
+    path = output_dir + f"\{name}_{hemisphere}_{time}.mgh"
     os.makedirs(os.path.dirname(path), exist_ok=True)
     nib.save(mgh_img, path)
 

@@ -5,8 +5,9 @@ from typing import Literal
 import numpy as np
 import nibabel as nib
 
-from preprocessing_surface import fmri_to_spatial_modes, load_volume_data, fmri_vol2surf
+from preprocessing_surface import fmri_to_spatial_modes, load_volume_data
 from visualization import visualize_brain_surface
+from gradient import build_mesh_graph
 
 
 def compute_RSFC_matrix(surf_fmri):
@@ -52,25 +53,33 @@ def compute_similarity_matrix(surf_fmri,
 
     This function computes a similarity matrix where each element [i, j] represents
     the similarity between the ith and jth samples in the input data. The similarity
-    metric used can be Pearson correlation, cosine similarity, or any other specified measure.
+    metric used is Pearson correlation.
 
-    Parameters
-    ----------
-    data : np.ndarray
-        A 2D NumPy array of shape (n_samples, n_features) containing the dataset.
+    Args:
+        surf_fmri (np.ndarray): 
+            A NORMALIZED (mena=0,var=1) 2D NumPy array of shape (n_samples, n_features) representing surface fMRI data.
+        preproc_vol_fmri_img (str or np.ndarray): 
+            The preprocessed volumetric fMRI image. This can be a file path or a NumPy array.
+        resampled_mask_img (str or np.ndarray): 
+            The resampled mask image corresponding to the fMRI data. This can be a file path or a NumPy array.
+        n_modes (int, optional): 
+            The number of spatial modes to extract. Defaults to 179.
 
-    Returns
-    -------
-    sim_matrix : np.ndarray
-        A 2D NumPy array of shape (n_samples, n_samples) representing the similarity
-        scores between each pair of samples.
+    Returns:
+        np.ndarray: 
+            A 2D NumPy array of shape (n_samples, n_samples) representing the similarity
+            scores between each pair of samples.
     """
     print("Computing the similarity matrix...")
     # Get the spatial modes (np.array) (noramlized)
     spatial_modes = fmri_to_spatial_modes(preproc_vol_fmri_img, 
                                           resampled_mask_img,
                                           n_modes=n_modes)
-    corr = np.dot(surf_fmri, spatial_modes.T)
+    # Put into float32
+    spatial_modes = spatial_modes.astype(np.float32)
+    surf_fmri = surf_fmri.astype(np.float32)
+    # Compute the correlation between the surface data and the volume data
+    corr = np.dot(surf_fmri, spatial_modes.T) # both need to be normalized
     corr[np.isnan(corr)] = 0 # Deal with NaN values
     corr = np.clip(corr, -1.0, 1.0) # Clip values to the range [-1, 1] to account for numerical errors
     corr = np.arctanh(corr)
@@ -112,34 +121,44 @@ def load_similarity_matrix(path):
 #%% Run the code
 
 if __name__ == "__main__":
-    # Define the paths
-    path_midthickness_l = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.32k.surf.gii"
-    path_midthickness_r = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\rh.midthickness.32k.surf.gii"
-    path_func = r"D:\DATA_min_preproc\dataset_study1\sub-03\func\wsraPPS-FACE_S03_005_Rest.nii"
-    path_brain_mask = r"D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\mri\brainmask.mgz"
     
-    # Compute the similarity matrix (dataset1)
-    vol_fmri_img, resampled_mask_img, affine = load_volume_data(path_func,
-                                                                path_brain_mask)
-    surf_fmri_l, surf_fmri_r = fmri_vol2surf(vol_fmri_img, 
-                                            path_midthickness_l, 
-                                            path_midthickness_r)
-    surf_fmri = surf_fmri_l
-    path_midthickness = path_midthickness_l
-    del surf_fmri_l, surf_fmri_r # Save memory
+    surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
+    surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.inflated"
+    # TODO : WARNING CUSTOMIZE THE PATH BASED ON YOUR DATA
+    subject = "01"
+    hemisphere = "lh"
+    subj_dir = r"D:\DATA_min_preproc\dataset_study1\sub-" + subject
+    vol_fmri_file = subj_dir + r"\func\wsraPPS-FACE_S" + subject + r"_005_Rest.nii"
+    brain_mask_path = subj_dir + r"\sub" + subject + r"_freesurfer\mri\brainmask.mgz"
+    surf_fmri_path = subj_dir + r"\func\sub" + subject + f"_{hemisphere}.func.fsaverage6.mgh"
     
-    gii = nib.load(path_midthickness)
-    coords = gii.darrays[0].data  # shape: (N_vertices, 3)
-    faces = gii.darrays[1].data   # shape: (N_faces, 3)
 
-    print(f'lh computing similarity matrix...')
+    # LOAD SURFACE DATA
+    surf_fmri_img = nib.load(surf_fmri_path)
+    surf_fmri = surf_fmri_img.get_fdata()
+    surf_fmri = np.squeeze(surf_fmri)
+    surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) \
+                / np.std(surf_fmri, axis=1, keepdims=True) # Normalize the data (MENDATORY)
+    print(f"Surf data shape (2D): {surf_fmri.shape}")
+    # LOAD VOLUME DATA
+    vol_fmri, resampled_mask, affine = load_volume_data(vol_fmri_file,
+                                                        brain_mask_path)
+    print(f"Volume data shape: {vol_fmri.shape}")
+    # LOAD FS6 DATA
+    coords, faces = nib.freesurfer.read_geometry(surface_path)
+    graph = build_mesh_graph(faces)
+    print(f"Number of vertices: {coords.shape[0]}")
+    print(f"Number of faces: {faces.shape[0]}")
+    
+    print("Computing the similarity matrix...")
+    # Normalized the fmri data and extract the spatial modes
     similarity_matrix = compute_similarity_matrix(surf_fmri, 
-                                                vol_fmri_img,
-                                                resampled_mask_img,
-                                                n_modes=179)
+                                                vol_fmri,
+                                                resampled_mask,
+                                                n_modes=380)
     
 
-
+#%%
 
 #####################################################
 # # Compute the gradient
