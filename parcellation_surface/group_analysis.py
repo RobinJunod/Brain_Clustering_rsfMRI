@@ -21,9 +21,10 @@ import glob
 from typing import Literal # Requires Python 3.8+
 import numpy as np
 import matplotlib.pyplot as plt
+import nibabel as nib
 
 from visualization import visualize_brain_surface
-from smoothing import smooth_surface
+from smoothing import smooth_surface_graph
 from watershed import watershed_by_flooding
 from gradient import build_mesh_graph
 from gradient import load_gradient_mgh
@@ -39,19 +40,19 @@ def extract_timestamp(fpath):
     return time_str
 
 def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
-                           dataset_dir = r"D:\DATA_min_preproc\dataset_PPSFace1"
+                           dataset_dir = r"D:\Data_Conn_Preproc\PPSFACE_N18"
                            ):
     list_parc = []
     list_grad = []
-    for s in range(1,19): # (modify as needed)
+    for s in range(1,11): # (modify as needed)
         # print('grad map and parcellation map of subject : ', s)
         subject = f"{s:02d}"
         # Path to the subject directory (modify as needed)
         subj_dir = dataset_dir + r"\sub-" + subject
-        grad_dir = subj_dir + r"\outputs_surface\gradient_map_fsavg6_highsmooth"
-        parcel_dir = subj_dir + r"\outputs_surface\labels_fsavg6_highsmooth"
-        pattern_grad = os.path.join(grad_dir, f"{hemisphere}_gradient_map_*.mgh")
-        pattern_parc = os.path.join(parcel_dir, f"{hemisphere}_labels_*.mgh")
+        grad_dir = subj_dir + r"\outputs_surface\gradient_map"
+        parcel_dir = subj_dir + r"\outputs_surface\labels"
+        pattern_grad = os.path.join(grad_dir, f"*_{hemisphere}_*.mgh")
+        pattern_parc = os.path.join(parcel_dir, f"*_{hemisphere}_*.mgh")
 
         files_grad = glob.glob(pattern_grad)
         files_parc = glob.glob(pattern_parc)
@@ -75,6 +76,26 @@ def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
     return gradient_list, parcel_list
 
 
+def extract_fmri_timeseries(hemisphere: Literal["lh", "rh"],
+                            run = "1"):
+    # Load all of the surf fmri data
+    surf_fmri_list = []
+    dataset_dir = r"D:\Data_Conn_Preproc\PPSFACE_N18"
+    for i in range(1,11):
+        subject = f"{i:02d}"
+        subj_dir = dataset_dir + r"\sub-" + subject
+        fmri_path = subj_dir + f"\\func\surf_conn_sub{subject}_run{run}_{hemisphere}.func.fsaverage6.mgh"
+        surf_fmri_img = nib.load(fmri_path)
+        surf_fmri = surf_fmri_img.get_fdata()
+        surf_fmri = np.squeeze(surf_fmri) # just rearrange the MGH data
+        # Normilize the data
+        surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
+        # Replace nan values with 0
+        surf_fmri = np.nan_to_num(surf_fmri)
+        surf_fmri_list.append(surf_fmri)
+    return surf_fmri_list
+
+
 def dice_coefficient(y_true, y_pred):
     """
     Compute the Dice coefficient between two binary masks.
@@ -96,6 +117,7 @@ def dice_coefficient(y_true, y_pred):
     if union == 0:
         return 1.0
     return 2 * intersection / union
+
 
 def parcels_homogeneity(group_parcel,
                         surf_fmri):
@@ -131,6 +153,7 @@ def parcels_homogeneity(group_parcel,
     
     return homogeneity_scores
 
+
 def parcel_correlation(group_parcel, 
                        surf_fmri):
     """
@@ -163,6 +186,7 @@ def parcel_correlation(group_parcel,
     # Compute and return the correlation matrix between parcels
     parcel_corr = np.corrcoef(parcel_data)
     return parcel_corr
+
 
 def hierarchical_corr_mtrx(corr_matrix, show=True):
     import scipy.cluster.hierarchy as sch
@@ -289,6 +313,7 @@ def create_random_parcels(graph, n_clusters):
     return labels
     
 def parcellation_vs_null():
+    # Use the 
     # Load the surface data
     homogeneity_scores = parcels_homogeneity(group_parc, surf_fmri_list[10])
     print(np.mean(homogeneity_scores))
@@ -298,42 +323,33 @@ def parcellation_vs_null():
     print(np.mean(homogeneity_scores_rnd))
     pass
 
-# TODO : try to visualize the group gradient and the group parcellation
+
+
+
 #%% TODO : try to perform watershed on gradient and on parcels
 if __name__ == "__main__":
     import nibabel as nib
     # surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
     surface_path = r"D:\DATA_min_preproc\dataset_PPSFace1\fsaverage6\surf\lh.inflated"
     coords, faces = nib.freesurfer.read_geometry(surface_path)
+    graph = build_mesh_graph(faces)
+    
     # Load all of the surf fmri data
-    surf_fmri_list = []
-    dataset_dir = r"D:\DATA_min_preproc\dataset_PPSFace1"
-    for i in range(1,19):
-        subject = f"{i:02d}"
-        subj_dir = dataset_dir + r"\sub-" + subject
-        lh_fmri_path = subj_dir + r"\func\sub" + subject + "_lh.func.fsaverage6.mgh"
-        surf_fmri_img = nib.load(lh_fmri_path)
-        surf_fmri = surf_fmri_img.get_fdata()
-        surf_fmri = np.squeeze(surf_fmri)
-        # Normilize the data
-        surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
-        surf_fmri_list.append(surf_fmri)
-    
-    
+    surf_fmri_list = extract_fmri_timeseries(hemisphere='lh')
+    # Load the gradient and parcellation maps
     gradient_list, parcel_list = extracrt_gradparc_list(hemisphere='lh')
-    # print(group_gradient.shape)
-    # print(group_parc_bound.shape)
+
     visualize_brain_surface(coords, faces, gradient_list[0], title="Group Gradient")
     
     # Compute group parcellation
     group_gradient = gradient_list.mean(axis=0)
-    group_gradient_smoothed = smooth_surface(faces, group_gradient,  iterations=10)
-    # visualize_brain_surface(coords, faces, group_gradient_smoothed, title="Group Gradient")
+    group_gradient_smoothed = smooth_surface_graph(graph, group_gradient,  iterations=10)
+    visualize_brain_surface(coords, faces, group_gradient_smoothed, title="Group Gradient")
+    
     # Labels the group gradient map
-    graph = build_mesh_graph(faces)
     group_parc = watershed_by_flooding(graph, group_gradient_smoothed)
     group_boundary = (group_parc<0)*1
-    # visualize_brain_surface(coords, faces, group_boundary, title="Group Bounardy")
+    visualize_brain_surface(coords, faces, group_boundary, title="Group Bounardy")
     
     # Compute dice coefficient with the boundaries
     dice_coef_list = []
@@ -345,11 +361,11 @@ if __name__ == "__main__":
         
     # Compare group dice coefficient
     groupA_mean = gradient_list[:8,:].mean(axis=0)
-    groupA_mean = smooth_surface(faces, groupA_mean,  iterations=10)
+    groupA_mean = smooth_surface_graph(graph, groupA_mean,  iterations=10)
     groupA_parc = watershed_by_flooding(graph, groupA_mean)
     groupA_boundary = (groupA_parc<0)*1
     groupB_mean = gradient_list[8:,:].mean(axis=0)
-    groupB_mean = smooth_surface(faces, groupB_mean,  iterations=10)
+    groupB_mean = smooth_surface_graph(graph, groupB_mean,  iterations=10)
     groupB_parc = watershed_by_flooding(graph, groupB_mean)
     groupB_boundary = (groupB_parc<0)*1
     
@@ -357,13 +373,12 @@ if __name__ == "__main__":
     #%% Compute the homogeneity of parcels
     homogeneity_scores = parcels_homogeneity(group_parc, surf_fmri_list[9])
     print(homogeneity_scores)
-    homogeneity_scores_native = parcels_homogeneity(group_parc, surf_fmri_list[9])
-    print(homogeneity_scores)
+    homogeneity_scores_native = parcels_homogeneity(parcel_list[9], surf_fmri_list[9])
+    print(homogeneity_scores_native)
 
     #%% Compute the corr between parcels
     sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[9])
     reordered_corr_matrix = hierarchical_corr_mtrx(sub1_parccorr, show=True)
-    
 
     #%% Select a cluster of interest
     # new_to_original = {new_idx: original_idx for new_idx, original_idx in enumerate(cluster_idxs)}

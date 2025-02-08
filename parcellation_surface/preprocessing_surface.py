@@ -44,7 +44,7 @@ def load_volume_data(path_func, path_brain_mask):
     resampled_mask_img = resample_img(
         brain_mask_img,
         target_affine=affine_vol_fmri,
-        target_shape=(79, 95, 79),
+        target_shape=vol_fmri.shape[:-1],
         interpolation='nearest',
         force_resample=True
     )
@@ -69,7 +69,8 @@ def load_volume_data(path_func, path_brain_mask):
 
 def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     """
-    Projects fMRI volume data onto the cortical surface.
+    An alternative to the Freesurfer project command.
+    Projects fMRI volume data onto the cortical surface. 
 
     Args:
         vol_fmri_img (nib.Nifti1Image): The fMRI volume image to be projected onto the surface.
@@ -109,6 +110,7 @@ def fmri_to_spatial_modes(vol_fmri,
         vol_fmri (numpy.ndarray float): 4D fMRI volume data.
         resampled_mask (numpy.ndarray bool): 3D resampled brain mask (bool).
         n_modes (int): Number of spatial modes to retain.
+        low_variance_threshold (float): Threshold for removing voxels with low variance.
 
     Returns:
         numpy.ndarray: 2D array of spatial modes.

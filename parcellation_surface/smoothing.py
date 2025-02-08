@@ -11,8 +11,7 @@ from scipy.sparse import csr_matrix, coo_matrix
 
 def smooth_surface(faces, values, iterations=5):
     """    
-    Smooth a surface-based fMRI statistical map using neighborhood averaging.
-
+    Smooth a surface-based fMRI statistical map using neighborhood averaging. WARNING : Memory expensive for large maps.
     Args:
         faces : (M, 3) ndarray
             Triangles as vertex indices.
@@ -67,76 +66,13 @@ def smooth_surface(faces, values, iterations=5):
     
     return smoothed_map
 
-from scipy.sparse import coo_matrix, csr_matrix
 
-def smooth_surface_with_graph(graph, 
-                              values, 
-                              iterations=5):
+def smooth_surface_graph(graph, values, iterations=10):
     """
-    Smooth a surface-based fMRI statistical map using neighborhood averaging,
-    using a NetworkX graph to define adjacency.
-
-    Args:
-        graph (networkx.Graph):
-            Undirected graph where each node is a vertex on the surface (labeled 0..n_vertices-1).
-            Edges define adjacency (mesh connectivity).
-        values (np.ndarray):
-            A 1D or 2D array of shape (n_vertices,) or (n_vertices, n_maps).
-        iterations (int, optional):
-            Number of smoothing iterations (averaging steps). Defaults to 5.
-
-    Returns:
-        np.ndarray:
-            The smoothed map, same shape as `values` (1D or 2D).
-    """
-    # Convert 'values' to float NumPy array
-    values = np.asarray(values, dtype=np.float32)
-
-    # Number of vertices (make sure this matches the number of nodes in the graph)
-    n_vertices = values.shape[0]
-    if graph.number_of_nodes() != n_vertices:
-        raise ValueError(f"Graph has {graph.number_of_nodes()} nodes but 'values' has {n_vertices} vertices.")
-
-    # 1) Build the sparse adjacency matrix (n_vertices x n_vertices) in COO format
-    row = []
-    col = []
-    data = []
-    for u, v in graph.edges():
-        # Undirected => add both (u->v) and (v->u)
-        row.extend([u, v])
-        col.extend([v, u])
-        data.extend([1.0, 1.0])
-
-    adjacency_coo = coo_matrix((data, (row, col)), shape=(n_vertices, n_vertices))
-    adjacency = adjacency_coo.tocsr()  # convert to CSR for fast row operations
-
-    # 2) Degree of each vertex (sum of adjacency row)
-    degree = np.array(adjacency.sum(axis=1)).ravel()  # shape (n_vertices,)
-    degree[degree == 0] = 1.0  # avoid divide-by-zero for isolated nodes
-
-    # 3) Create the diagonal matrix W = D^-1
-    W_data = 1.0 / degree
-    W = csr_matrix((W_data, (range(n_vertices), range(n_vertices))), shape=(n_vertices, n_vertices))
-
-    # 4) Smoothing operator: S = W * adjacency
-    smoothing_operator = W.dot(adjacency)
-
-    # 5) Iterative smoothing
-    smoothed_map = values.copy()  # shape: (n_vertices,) or (n_vertices, n_maps)
-    for _ in range(iterations):
-        smoothed_map = smoothing_operator.dot(smoothed_map)
-
-    return smoothed_map
-
-
-
-
-def smooth_surface_with_graph_adjlist(graph, values, iterations=10):
-    """
-    Smooth a surface-based fMRI statistical map using neighborhood averaging,
-    defined by a NetworkX graph. This version is more memory-efficient
-    because it avoids building a full n x n adjacency matrix.
-
+    Smooth a surface-based fMRI statistical map using neighborhood averaging iteratively.
+    This version is more memory-efficient because it 
+    avoids building a full n x n adjacency matrix.
+    
     Args:
         graph (networkx.Graph):
             Undirected graph where each node is a vertex on the surface (0..n_vertices-1).
@@ -144,170 +80,66 @@ def smooth_surface_with_graph_adjlist(graph, values, iterations=10):
         values (np.ndarray):
             A 1D or 2D array of shape (n_vertices,) or (n_vertices, n_maps).
         iterations (int, optional):
-            Number of smoothing iterations (averaging steps). Defaults to 5.
-
+            Number of smoothing iterations (averaging steps). Defaults to 10.
+    
     Returns:
         np.ndarray:
-            The smoothed map, same shape as `values` (1D or 2D).
+            The smoothed map, with the same shape as `values`:
+              - For 1D input: (n_vertices,)
+              - For 2D input: (n_vertices, n_maps)
     """
+    # Ensure values are a NumPy array of float32
     values = np.asarray(values, dtype=np.float32)
     n_vertices = values.shape[0]
-
+    
+    # Validate that the number of graph nodes matches the number of vertices.
     if graph.number_of_nodes() != n_vertices:
         raise ValueError(
             f"Graph has {graph.number_of_nodes()} nodes but 'values' has {n_vertices} vertices."
         )
 
-    # Build adjacency lists: adjacency_list[u] = list of neighbors of u
+    # Validate the dimensionality of values.
+    if values.ndim not in (1, 2):
+        raise ValueError("'values' should be either a 1D or 2D array.")
+    
+    # Build the adjacency list (each vertex's neighbors)
     adjacency_list = [[] for _ in range(n_vertices)]
     for u, v in graph.edges():
         adjacency_list[u].append(v)
         adjacency_list[v].append(u)
-
-    # Prepare buffers for iterative updates
-    smoothed_map = values.copy()
-    new_map = np.zeros_like(smoothed_map)
-
+    
+    # Prepare working buffers for iterative updates
+    smoothed_map = values.copy()         # current smoothed values
+    new_map = np.zeros_like(smoothed_map)  # buffer for updated values
+    
+    # Perform iterative smoothing
     for _ in range(iterations):
         if smoothed_map.ndim == 1:
-            # 1D case
+            # 1D case: each vertex has a single value.
             for u in range(n_vertices):
                 neighbors = adjacency_list[u]
-                deg = len(neighbors)
-                # Avoid division by zero in case of isolated nodes
-                if deg > 0:
-                    s = 0.0
-                    for v in neighbors:
-                        s += smoothed_map[v]
-                    new_map[u] = s / deg
-                else:
-                    new_map[u] = smoothed_map[u]
+                total = smoothed_map[u]  # Always include self.
+                count = 1
+                for v in neighbors:
+                    total += smoothed_map[v]
+                    count += 1
+                new_map[u] = total / count
         else:
-            # 2D case: shape (n_vertices, n_maps)
+            # 2D case: each vertex has a vector of values (n_maps)
             for u in range(n_vertices):
                 neighbors = adjacency_list[u]
-                deg = len(neighbors)
-                if deg > 0:
-                    # sum across neighbors for each map separately
-                    new_map[u, :] = smoothed_map[neighbors, :].sum(axis=0) / deg
-                else:
-                    new_map[u, :] = smoothed_map[u, :]
-
-        # Swap buffers instead of copying
+                total = smoothed_map[u, :].copy()  # Include self.
+                count = 1
+                if neighbors:
+                    total += smoothed_map[neighbors, :].sum(axis=0)
+                    count += len(neighbors)
+                new_map[u, :] = total / count
+        
+        # Swap buffers for the next iteration.
         smoothed_map, new_map = new_map, smoothed_map
 
-    # If we did an odd number of iterations, the "final" result is in smoothed_map.
-    # If even, it's in new_map. We can handle that by returning smoothed_map
-    # if we ended with an odd iteration count; or simply do:
     return smoothed_map
 
-
-# Usage:
-# save_gifti_stat_map(sim_map_smoothed, "gradient.func.gii")
-
-import numpy as np
-import networkx as nx
-import numba
-from numba import njit, prange, typed, types
-
-@njit(parallel=True)
-def _smooth_iteration_1d(adj_list_nb, smoothed_map, new_map):
-    n_vertices = smoothed_map.size
-    for u in prange(n_vertices):
-        neighbors = adj_list_nb[u]
-        deg = len(neighbors)
-        if deg > 0:
-            s = 0.0
-            for v in neighbors:
-                s += smoothed_map[v]
-            new_map[u] = s / deg
-        else:
-            new_map[u] = smoothed_map[u]
-
-@njit(parallel=True)
-def _smooth_iteration_2d(adj_list_nb, smoothed_map, new_map):
-    n_vertices, n_maps = smoothed_map.shape
-    for u in prange(n_vertices):
-        neighbors = adj_list_nb[u]
-        deg = len(neighbors)
-        if deg > 0:
-            for m in range(n_maps):
-                s = 0.0
-                for v in neighbors:
-                    s += smoothed_map[v, m]
-                new_map[u, m] = s / deg
-        else:
-            # isolated node => copy old values
-            for m in range(n_maps):
-                new_map[u, m] = smoothed_map[u, m]
-
-def smooth_surface_with_graph_adjlist_numba(graph, values, iterations=5):
-    """
-    Smooth a surface-based fMRI statistical map using neighborhood averaging,
-    defined by a NetworkX graph. Uses Numba JIT to accelerate the iterative loop.
-
-    Args:
-        graph (networkx.Graph):
-            Undirected graph where each node is a vertex on the surface (0..n_vertices-1).
-            Edges define adjacency.
-        values (np.ndarray):
-            A 1D or 2D array of shape (n_vertices,) or (n_vertices, n_maps).
-        iterations (int, optional):
-            Number of smoothing iterations (averaging steps). Defaults to 5.
-
-    Returns:
-        np.ndarray: The smoothed map, same shape as `values`.
-    """
-
-    # Convert input to float32 array
-    values = np.asarray(values, dtype=np.float32)
-    n_vertices = values.shape[0]
-
-    if graph.number_of_nodes() != n_vertices:
-        raise ValueError(
-            f"Graph has {graph.number_of_nodes()} nodes but 'values' has {n_vertices} vertices."
-        )
-
-    # -----------------------------------------------------------
-    # 1) Build a Numba-typed adjacency list
-    #    adjacency_list[u] = list of neighbors of u
-    # -----------------------------------------------------------
-    # First build a normal Python list of lists
-    adjacency_list = [[] for _ in range(n_vertices)]
-    for u, v in graph.edges():
-        adjacency_list[u].append(v)
-        adjacency_list[v].append(u)
-
-    # Now convert each Python list to a typed.List[int64]
-    adjacency_list_nb = typed.List.empty_list(types.ListType(numba.int64))
-    for u in range(n_vertices):
-        nb_list = typed.List.empty_list(numba.int64)
-        for neighbor in adjacency_list[u]:
-            nb_list.append(neighbor)
-        adjacency_list_nb.append(nb_list)
-
-    # -----------------------------------------------------------
-    # 2) Prepare buffers for iterative updates
-    # -----------------------------------------------------------
-    smoothed_map = values.copy()
-    new_map = np.zeros_like(smoothed_map)
-
-    # -----------------------------------------------------------
-    # 3) Iterative smoothing using Numba-accelerated functions
-    # -----------------------------------------------------------
-    if smoothed_map.ndim == 1:
-        for _ in range(iterations):
-            _smooth_iteration_1d(adjacency_list_nb, smoothed_map, new_map)
-            # Swap references instead of copying large arrays
-            smoothed_map, new_map = new_map, smoothed_map
-    else:
-        for _ in range(iterations):
-            _smooth_iteration_2d(adjacency_list_nb, smoothed_map, new_map)
-            smoothed_map, new_map = new_map, smoothed_map
-
-    # If we did an odd number of iterations, the final result is in smoothed_map.
-    # Otherwise, it's in new_map. We always return smoothed_map after final swap.
-    return smoothed_map
 
 
 

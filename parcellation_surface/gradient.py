@@ -69,12 +69,12 @@ def compute_gradient_average(graph,
         gradients += gradient
     return gradients
 
-
+# Most efficient method for large matrix gradient computation
 def compute_gradients(graph, 
                       similarity_matrix):
     """
     Compute a local gradient magnitude at each vertex for each column of 'similarity_matrix',
-    using an edge-based vectorized approach. This give all N vertices and M maps.
+    using an edge-based vectorized approach. This give all N vertices and M maps. Fast and efficient.
     
     Args:
         graph (networkx.Graph) : Undirected graph representing the mesh connectivity (one node per vertex).
