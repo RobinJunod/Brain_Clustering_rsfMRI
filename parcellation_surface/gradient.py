@@ -43,7 +43,6 @@ def compute_gradient(graph, stat_map):
         gradients[vertex] = np.sqrt(np.sum(differences ** 2))
     return gradients
 
-
 def compute_gradient_average(graph, 
                             similarity_matrix, 
                             skip=10):
@@ -73,7 +72,7 @@ def compute_gradient_average(graph,
 def compute_gradients(graph, 
                       similarity_matrix):
     """
-    Compute a local gradient magnitude at each vertex for each column of 'similarity_matrix',
+    Compute a local gradient magnitude at each vertex for each column of a 'similarity_matrix',
     using an edge-based vectorized approach. This give all N vertices and M maps. Fast and efficient.
     
     Args:
@@ -111,19 +110,13 @@ def compute_gradient_magnitudes(faces, coords, values):
     """
     Compute per-vertex gradient magnitudes of a scalar field on a triangular mesh.
 
-    Parameters
-    ----------
-    coords : np.ndarray, shape (n_coords, 3)
-        3D coordinates of each vertex.
-    faces : np.ndarray, shape (n_faces, 3)
-        Triangle faces, each a triplet of vertex indices.
-    values : np.ndarray, shape (n_coords,)
-        Scalar value (e.g. similarity) at each vertex.
-
-    Returns
-    -------
-    grad_magnitudes : np.ndarray, shape (n_coords,)
-        The magnitude of the spatial gradient at each vertex.
+    Args:
+        faces (np.ndarray): Triangle vertex indices, shape (n_faces, 3).
+        coords (np.ndarray): Vertex coordinates, shape (n_vertices, 3).
+        values (np.ndarray): Scalar field values at each vertex, shape (n_vertices,).
+        
+    Returns:
+        grad_magnitudes (np.ndarray): Gradient magnitudes at each vertex, shape (n_vertices,).
     """
     n_vertices = coords.shape[0]
     

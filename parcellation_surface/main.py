@@ -8,7 +8,7 @@ import nibabel as nib
 
 from preprocessing_surface import load_volume_data, fmri_vol2surf
 from similarity_matrix import compute_similarity_matrix
-from smoothing import smooth_surface, smooth_surface_with_graph_adjlist
+from smoothing import smooth_surface, smooth_surface_graph
 from gradient import compute_gradients, compute_gradient_average, build_mesh_graph, \
                      save_gradient_mgh, load_gradient_mgh
 from watershed import watershed_by_flooding, save_labels_mgh \
@@ -75,7 +75,7 @@ def full_pipeline():
             del surf_fmri, vol_fmri  # Save memory
             
             print('Smoothing similarity matrix...')
-            sim_matrix_smoothed = smooth_surface_with_graph_adjlist(graph, similarity_matrix, iterations=10)
+            sim_matrix_smoothed = smooth_surface_graph(graph, similarity_matrix, iterations=10)
             del similarity_matrix  # Save memory
             
             print('Computing gradients...')

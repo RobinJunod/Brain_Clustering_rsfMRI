@@ -6,7 +6,6 @@ import numpy as np
 import nibabel as nib
 
 from preprocessing_surface import fmri_to_spatial_modes, load_volume_data
-from visualization import visualize_brain_surface
 from gradient import build_mesh_graph
 
 
@@ -27,10 +26,10 @@ def compute_RSFC_matrix(surf_fmri):
 
     return RSFC_matrix
 
-
+# WARNING : This function is not used in the current version of the code
 def compute_similarity_matrix(surf_fmri,
-                              preproc_vol_fmri_img,
-                              resampled_mask_img,
+                              preproc_vol_fmri,
+                              resampled_mask,
                               n_modes=380):
     """
     Calculate the pairwise similarity matrix for the given dataset.
@@ -55,8 +54,8 @@ def compute_similarity_matrix(surf_fmri,
             scores between each pair of samples.
     """
     # Get the spatial modes (np.array) (noramlized)
-    spatial_modes = fmri_to_spatial_modes(preproc_vol_fmri_img, 
-                                          resampled_mask_img,
+    spatial_modes = fmri_to_spatial_modes(preproc_vol_fmri, 
+                                          resampled_mask,
                                           n_modes=n_modes)
     # Put into float32
     spatial_modes = spatial_modes.astype(np.float32)
@@ -75,6 +74,48 @@ def compute_similarity_matrix(surf_fmri,
     similarity_matrix[np.isnan(similarity_matrix)] = 0 # Deal with NaN values
     
     return similarity_matrix
+
+
+from sklearn.decomposition import PCA
+def compute_similarty_matrix_PCA(vol_fmri_n,
+                                 surf_fmri_n,
+                                 n_components=17):
+    """Compute the similarity matrix with a PCA dim reduction
+    Args:
+        vol_fmri_n (_type_): _description_
+        surf_fmri_n (_type_): _description_
+        n_components (int, optional): _description_. Defaults to 17.
+    """
+    # 4. Run PCA on the time series data
+    n_components = 17  # Number of PCA components you want to extract
+    pca = PCA(n_components=n_components)
+    temporal_modes = pca.fit_transform(vol_fmri_n.T).astype(np.float32) # shape = (n_timepoints, n_components)
+    
+    # Correlation formula for normalized data
+    corr_matrix = (surf_fmri_n @ temporal_modes)  / (surf_fmri_n.shape[1] - 1) # shape = (n_vertices, n_components)
+    # Similarty matrix
+    sim_matrix = np.corrcoef(corr_matrix, dtype=np.float32) # shape = (n_vertices, n_vertices)
+    sim_matrix = np.nan_to_num(sim_matrix) # remove nans if any
+    return sim_matrix
+
+
+def compute_similarity_matrix_ica(surf_fmri_n,
+                                vol_fmri_n,
+                                mask_n,
+                                n_modes=7):
+    from sklearn.decomposition import FastICA
+    X = vol_fmri_n[mask_n].T
+    n_components = 7 # This is where you set the number of ICA sources
+    ica = FastICA(n_components=n_components, random_state=0)
+    temporal_modes = ica.fit_transform(X)   # S has shape (380, n_components)
+    
+    # compute the correlation matrix (for normalized data, the correlation matrix is the same as the covariance matrix)
+    corr_matrix = (surf_fmri_n @ temporal_modes)  / (surf_fmri_n.shape[1] - 1)
+
+    # make the similarty matrix as the correlation of the correlation matrix
+    sim_matrix = np.corrcoef(corr_matrix)
+    sim_matrix = np.nan_to_num(sim_matrix) # remove nans if any
+    return sim_matrix
 
 
 def save_similartiy_matrix(similarity_matrix,

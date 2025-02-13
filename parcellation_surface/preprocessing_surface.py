@@ -99,6 +99,39 @@ def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     return surf_fmri_l, surf_fmri_r
 
 
+def load_data_normalized(surf_fmri_path,
+                         vol_fmri_path, 
+                         brain_mask_path):
+
+    # Load the surface data
+    surf_fmri = nib.load(str(surf_fmri_path)).get_fdata().squeeze()
+    surf_fmri_n = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
+    
+    # Load the images using nibabel
+    vol_fmri = nib.load(str(vol_fmri_path))
+    mask_img = nib.load(brain_mask_path)
+
+    # resample the mask to the right one
+    mask_img = resample_img(
+        mask_img,
+        target_affine=vol_fmri.affine,
+        target_shape=vol_fmri.get_fdata().shape[:-1],
+        interpolation='nearest',
+        force_resample=True
+    )
+
+    fmri_data = vol_fmri.get_fdata()
+    mask_data = mask_img.get_fdata().astype(bool)  # Convert mask to boolean
+    # Normalize the data
+    vol_fmri = fmri_data[mask_data] 
+    vol_fmri_n = (vol_fmri - np.mean(vol_fmri, axis=1, keepdims=True)) / np.std(vol_fmri, axis=1, keepdims=True)
+    
+    # Remove nans from the data
+    surf_fmri_n = np.nan_to_num(surf_fmri_n)
+    vol_fmri_n = np.nan_to_num(vol_fmri_n)
+    return surf_fmri_n, vol_fmri_n
+
+
 def fmri_to_spatial_modes(vol_fmri, 
                           resampled_mask,
                           n_modes=380,
