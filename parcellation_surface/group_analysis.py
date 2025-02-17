@@ -151,7 +151,13 @@ def parcels_homogeneity(group_parcel,
         # Store the homogeneity score for this parcel
         homogeneity_scores.append(explained_variance)
     
-    return homogeneity_scores
+    # transform the homogeneity scores to a numpy array
+    homogeneity_scores = np.array(homogeneity_scores)
+    # keep the mean homogeneity score
+    homogeneity_mean = np.mean(homogeneity_scores)
+    return homogeneity_mean
+
+
 
 
 def parcel_correlation(group_parcel, 
@@ -205,63 +211,6 @@ def hierarchical_corr_mtrx(corr_matrix, show=True):
         plt.show()
     return reordered_corr_matrix
 
-# def spectral_corr_mtrx(corr_matrix, n_clusters=7, show=True):
-#     from sklearn.cluster import SpectralClustering
-#     import seaborn as sns
-#     # Ensure the similarity matrix is positive (if necessary)
-#     similarity_matrix = (corr_matrix + 1) / 2  # Rescale to [0, 1]
-#     # Spectral clustering
-#     clustering = SpectralClustering(
-#         n_clusters=n_clusters,
-#         affinity='precomputed',  # Use the similarity matrix directly
-#         assign_labels='kmeans', # Use k-means for final clustering step
-#         random_state=42
-#     )
-#     cluster_labels = clustering.fit_predict(similarity_matrix)
-#     # Get the sorted indices based on clustering results
-#     sorted_idx = np.argsort(cluster_labels)
-#     # Reorder the correlation matrix
-#     reordered_corr_matrix = corr_matrix[np.ix_(sorted_idx, sorted_idx)]
-#     if show:
-#         # Plot the reordered correlation matrix
-#         plt.figure(figsize=(10, 8))
-#         sns.heatmap(reordered_corr_matrix, cmap="coolwarm", square=True)
-#         plt.title(f'Reordered Correlation Matrix with {n_clusters} Clusters')
-#         plt.show()
-#     return reordered_corr_matrix
-
-
-def boxplot_values(values, 
-                   title="Boxplot of Values", 
-                   ylabel='Dice coefficient'):
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-
-    # Initialize the figure with appropriate size
-    plt.figure(figsize=(4, 6))
-
-    # Create a boxplot with enhanced styling
-    sns.boxplot(data=values, color="skyblue", width=0.5, showfliers=False, linewidth=2,
-                whiskerprops=dict(color="black", linewidth=1.5),
-                capprops=dict(color="black", linewidth=1.5),
-                medianprops=dict(color="darkred", linewidth=2),
-                boxprops=dict(facecolor="lightblue", edgecolor="black", linewidth=1.5)
-    )
-    # Overlay individual data points with jitter for better visibility
-    sns.stripplot(data=values,color="darkblue",jitter=True,size=7,
-                edgecolor="white",linewidth=1,alpha=0.8
-    )
-    # Add title and labels with improved formatting
-    plt.title(title, fontsize=16, fontweight="bold", pad=15)
-    plt.ylabel(ylabel, fontsize=14)
-    plt.xlabel("", fontsize=12)  # Remove x-axis label
-    # Remove x-axis ticks for clarity since there's only one group
-    plt.xticks([])
-    # Customize grid lines for a cleaner look
-    plt.grid(True, axis="y", linestyle="--", alpha=0.6)
-    # Optimize layout and display the plot
-    plt.tight_layout()
-    plt.show()
 
 
 from collections import deque
