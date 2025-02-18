@@ -118,8 +118,35 @@ def dice_coefficient(y_true, y_pred):
         return 1.0
     return 2 * intersection / union
 
+def homogeneity_craddock_rt(labels, 
+                            list_surf_fmri_n):
+    """They take every pair of voxels within an ROI and compute the Pearson correlation between the two voxels fMRI time series.
+    The homogeneity for that ROI is then the average of these pairwise correlations
+    
+    Args:
+        labels (np.ndarray): An array where each element indicates the parcel assignment 
+                                   of the corresponding vertex in the surface fMRI data.
+        list_surf_fmri_n (list): A list of 2D NORMALIZED arrays where each row represents a vertex and each column
+                                    represents a time point of the fMRI data.
+    Returns:
+        float: The mean homogeneity score across all subjects and parcels.
+    """
+    homogeneity_sub = []
+    for surf_fmri_n in list_surf_fmri_n: # average across all subjects
+        # Get unique parcel indices greater than 0 (non-zero parcels)
+        unique_parcels = np.unique(labels)
+        unique_parcels = unique_parcels[unique_parcels >= 0]  # Avoid zero or background parcel
+        # Initialize a list to store homogeneity scores for each parcel
+        homogeneity_parc = []
+        for parcel in unique_parcels: # average across all parcels
+            # make a correaltion of the vertex in the parcel
+            parcel_indices = np.where(labels == parcel)[0]
+            homogeneity_parc.append(np.nan_to_num(np.corrcoef(surf_fmri_n[parcel_indices, :])).mean()) # Craddock homogenity
+        homogeneity_sub.append(np.mean(homogeneity_parc))
+    return np.mean(homogeneity_sub) # Return the mean homogenity across all subjects
 
-def parcels_homogeneity(group_parcel,
+
+def homogeneity_timecourse(group_parcel,
                         surf_fmri):
     from sklearn.decomposition import PCA
     """The homogeneity of a parcel represents the percent of variance in the parcel explained by 
@@ -260,17 +287,6 @@ def create_random_parcels(graph, n_clusters):
                     labels[neighbor] = -2        # Mark the neighbor as a boundary
 
     return labels
-    
-def parcellation_vs_null():
-    # Use the 
-    # Load the surface data
-    homogeneity_scores = parcels_homogeneity(group_parc, surf_fmri_list[10])
-    print(np.mean(homogeneity_scores))
-    # Create a null model with 134 parcels
-    parcels_nullmodel = create_random_parcels(graph,134)
-    homogeneity_scores_rnd = parcels_homogeneity(parcels_nullmodel, surf_fmri_list[10])
-    print(np.mean(homogeneity_scores_rnd))
-    pass
 
 
 
@@ -319,11 +335,6 @@ if __name__ == "__main__":
     groupB_boundary = (groupB_parc<0)*1
     
     
-    #%% Compute the homogeneity of parcels
-    homogeneity_scores = parcels_homogeneity(group_parc, surf_fmri_list[9])
-    print(homogeneity_scores)
-    homogeneity_scores_native = parcels_homogeneity(parcel_list[9], surf_fmri_list[9])
-    print(homogeneity_scores_native)
 
     #%% Compute the corr between parcels
     sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[9])

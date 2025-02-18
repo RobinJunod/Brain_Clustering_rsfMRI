@@ -26,58 +26,11 @@ def compute_RSFC_matrix(surf_fmri):
 
     return RSFC_matrix
 
-# WARNING : This function is not used in the current version of the code
-def compute_similarity_matrix(surf_fmri,
-                              preproc_vol_fmri,
-                              resampled_mask,
-                              n_modes=380):
-    """
-    Calculate the pairwise similarity matrix for the given dataset.
 
-    This function computes a similarity matrix where each element [i, j] represents
-    the similarity between the ith and jth samples in the input data. The similarity
-    metric used is Pearson correlation.
-
-    Args:
-        surf_fmri (np.ndarray): 
-            A NORMALIZED (mena=0,var=1) 2D NumPy array of shape (n_samples, n_features) representing surface fMRI data.
-        preproc_vol_fmri_img (np.ndarray): 
-            The preprocessed volumetric fMRI image. This can be a file path or a NumPy array.
-        resampled_mask_img (str or np.ndarray): 
-            The resampled mask image corresponding to the fMRI data. This can be a file path or a NumPy array.
-        n_modes (int, optional): 
-            The number of spatial modes to extract. Defaults to 179.
-
-    Returns:
-        np.ndarray: 
-            A 2D NumPy array of shape (n_samples, n_samples) representing the similarity
-            scores between each pair of samples.
-    """
-    # Get the spatial modes (np.array) (noramlized)
-    spatial_modes = fmri_to_spatial_modes(preproc_vol_fmri, 
-                                          resampled_mask,
-                                          n_modes=n_modes)
-    # Put into float32
-    spatial_modes = spatial_modes.astype(np.float32)
-    surf_fmri = surf_fmri.astype(np.float32)
-    # Compute the correlation between the surface data and the volume data
-    corr = np.dot(surf_fmri, spatial_modes.T) # both need to be normalized
-    corr[np.isnan(corr)] = 0 # Deal with NaN values
-    corr = np.clip(corr, -1.0, 1.0) # Clip values to the range [-1, 1] to account for numerical errors
-    corr = np.arctanh(corr)
-    corr[np.isinf(corr)] = 0 # Replace inf values with 0
-    
-    # compute the similarity matrix
-    similarity_matrix = np.corrcoef(corr)
-    # Remove inf and nans values
-    similarity_matrix[np.isinf(similarity_matrix)] = 0
-    similarity_matrix[np.isnan(similarity_matrix)] = 0 # Deal with NaN values
-    
-    return similarity_matrix
 
 
 from sklearn.decomposition import PCA
-def compute_similarty_matrix_PCA(vol_fmri_n,
+def compute_similarity_matrix_pca(vol_fmri_n,
                                  surf_fmri_n,
                                  n_components=17):
     """Compute the similarity matrix with a PCA dim reduction
@@ -99,11 +52,11 @@ def compute_similarty_matrix_PCA(vol_fmri_n,
     return sim_matrix
 
 
+from sklearn.decomposition import FastICA
 def compute_similarity_matrix_ica(surf_fmri_n,
                                 vol_fmri_n,
                                 mask_n,
                                 n_modes=7):
-    from sklearn.decomposition import FastICA
     X = vol_fmri_n[mask_n].T
     n_components = 7 # This is where you set the number of ICA sources
     ica = FastICA(n_components=n_components, random_state=0)
@@ -116,6 +69,12 @@ def compute_similarity_matrix_ica(surf_fmri_n,
     sim_matrix = np.corrcoef(corr_matrix)
     sim_matrix = np.nan_to_num(sim_matrix) # remove nans if any
     return sim_matrix
+
+
+def compute_similarity_matrix_gordon():
+    # Here the similarity matrix is computed usinga ll of the voxels inside of the bain mask (no dimension reduction !!!)
+    pass
+
 
 
 def save_similartiy_matrix(similarity_matrix,
@@ -174,13 +133,66 @@ if __name__ == "__main__":
     
     print("Computing the similarity matrix...")
     # Normalized the fmri data and extract the spatial modes
-    similarity_matrix = compute_similarity_matrix(surf_fmri, 
+    similarity_matrix = compute_similarity_matrix_pca(surf_fmri, 
                                                 vol_fmri,
                                                 resampled_mask,
                                                 n_modes=380)
     
 
 #%%
+
+
+# WARNING : This function is not used in the current version of the code
+# def compute_similarity_matrix(surf_fmri,
+#                               preproc_vol_fmri,
+#                               resampled_mask,
+#                               n_modes=380):
+#     """
+#     Calculate the pairwise similarity matrix for the given dataset.
+
+#     This function computes a similarity matrix where each element [i, j] represents
+#     the similarity between the ith and jth samples in the input data. The similarity
+#     metric used is Pearson correlation.
+
+#     Args:
+#         surf_fmri (np.ndarray): 
+#             A NORMALIZED (mena=0,var=1) 2D NumPy array of shape (n_samples, n_features) representing surface fMRI data.
+#         preproc_vol_fmri_img (np.ndarray): 
+#             The preprocessed volumetric fMRI image. This can be a file path or a NumPy array.
+#         resampled_mask_img (str or np.ndarray): 
+#             The resampled mask image corresponding to the fMRI data. This can be a file path or a NumPy array.
+#         n_modes (int, optional): 
+#             The number of spatial modes to extract. Defaults to 179.
+
+#     Returns:
+#         np.ndarray: 
+#             A 2D NumPy array of shape (n_samples, n_samples) representing the similarity
+#             scores between each pair of samples.
+#     """
+#     # Get the spatial modes (np.array) (noramlized)
+#     spatial_modes = fmri_to_spatial_modes(preproc_vol_fmri, 
+#                                           resampled_mask,
+#                                           n_modes=n_modes)
+#     # Put into float32
+#     spatial_modes = spatial_modes.astype(np.float32)
+#     surf_fmri = surf_fmri.astype(np.float32)
+#     # Compute the correlation between the surface data and the volume data
+#     corr = np.dot(surf_fmri, spatial_modes.T) # both need to be normalized
+#     corr[np.isnan(corr)] = 0 # Deal with NaN values
+#     corr = np.clip(corr, -1.0, 1.0) # Clip values to the range [-1, 1] to account for numerical errors
+#     corr = np.arctanh(corr)
+#     corr[np.isinf(corr)] = 0 # Replace inf values with 0
+    
+#     # compute the similarity matrix
+#     similarity_matrix = np.corrcoef(corr)
+#     # Remove inf and nans values
+#     similarity_matrix[np.isinf(similarity_matrix)] = 0
+#     similarity_matrix[np.isnan(similarity_matrix)] = 0 # Deal with NaN values
+    
+#     return similarity_matrix
+
+
+
 
 #####################################################
 # # Compute the gradient
