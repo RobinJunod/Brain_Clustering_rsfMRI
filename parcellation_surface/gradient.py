@@ -23,6 +23,46 @@ def build_mesh_graph(faces):
             graph.add_edge(v1, v2)
     return graph
 
+
+# Most efficient method for large matrix gradient computation
+def compute_gradients(graph, 
+                      similarity_matrix):
+    """
+    Compute a local gradient magnitude at each vertex for each column of a 'similarity_matrix',
+    using an edge-based vectorized approach. This give all N vertices and M maps. Fast and efficient.
+    
+    Args:
+        graph (networkx.Graph) : Undirected graph representing the mesh connectivity (one node per vertex).
+            Nodes should be laeled 0..(N-1).
+        similarity_matrix (np.ndarray) (N vertices, M maps) : 'N' vertices and 'M' maps/columns. Column m is the scalar field for map m.
+    Returns
+        gradients (np.ndarray) : (N vertices, M maps) : gradients[v,m] = sqrt( sum_{u in neighbors(v)} (vals[v,m] - vals[u,m])^2 )
+    """
+    # Convert input to a NumPy array of shape (N, M)
+    similarity_matrix = np.asarray(similarity_matrix, dtype=np.float16)
+    N, M = similarity_matrix.shape
+
+    # We will accumulate sum of squared differences for each vertex v, for each map m
+    squared_sums = np.zeros((N, M), dtype=np.float16)
+
+    # Loop once over all edges
+    for v, u in graph.edges():
+        # For each edge (v,u), compute the difference across all maps at once
+        diff = similarity_matrix[v, :] - similarity_matrix[u, :]  # shape (M,)
+        diff_sq = diff * diff  # elementwise square
+
+        # Add the squared difference to both endpoints v and u
+        squared_sums[v, :] += diff_sq
+        squared_sums[u, :] += diff_sq
+
+    # Now take the sqrt => final gradient magnitude at each vertex, for each map
+    gradients = np.sqrt(squared_sums)
+
+    return gradients
+
+##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Other old methods for gradient computation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 def compute_gradient(graph, stat_map):
     """
     Compute the gradient magnitude at each vertex based on similarity map.
@@ -68,41 +108,7 @@ def compute_gradient_average(graph,
         gradients += gradient
     return gradients
 
-# Most efficient method for large matrix gradient computation
-def compute_gradients(graph, 
-                      similarity_matrix):
-    """
-    Compute a local gradient magnitude at each vertex for each column of a 'similarity_matrix',
-    using an edge-based vectorized approach. This give all N vertices and M maps. Fast and efficient.
-    
-    Args:
-        graph (networkx.Graph) : Undirected graph representing the mesh connectivity (one node per vertex).
-            Nodes should be laeled 0..(N-1).
-        similarity_matrix (np.ndarray) (N vertices, M maps) : 'N' vertices and 'M' maps/columns. Column m is the scalar field for map m.
-    Returns
-        gradients (np.ndarray) : (N vertices, M maps) : gradients[v,m] = sqrt( sum_{u in neighbors(v)} (vals[v,m] - vals[u,m])^2 )
-    """
-    # Convert input to a NumPy array of shape (N, M)
-    similarity_matrix = np.asarray(similarity_matrix, dtype=np.float16)
-    N, M = similarity_matrix.shape
 
-    # We will accumulate sum of squared differences for each vertex v, for each map m
-    squared_sums = np.zeros((N, M), dtype=np.float16)
-
-    # Loop once over all edges
-    for v, u in graph.edges():
-        # For each edge (v,u), compute the difference across all maps at once
-        diff = similarity_matrix[v, :] - similarity_matrix[u, :]  # shape (M,)
-        diff_sq = diff * diff  # elementwise square
-
-        # Add the squared difference to both endpoints v and u
-        squared_sums[v, :] += diff_sq
-        squared_sums[u, :] += diff_sq
-
-    # Now take the sqrt => final gradient magnitude at each vertex, for each map
-    gradients = np.sqrt(squared_sums)
-
-    return gradients
 
 
 # Precise but costly method
