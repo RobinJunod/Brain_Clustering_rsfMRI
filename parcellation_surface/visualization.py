@@ -47,6 +47,64 @@ def visualize_brain_surface(coords,
     return view
 
 # Algorithm used to combine two surfaces (usually left and right hemispheres) into one mesh
+import matplotlib.colors as mcolors
+import numpy as np
+import matplotlib.pyplot as plt
+from nilearn.plotting import view_surf
+def visualize_brain_surface_n(coords,
+                             faces,
+                             scalar_values,
+                             title="Statistical map on surface",
+                             cmap="viridis",
+                             threshold=0):
+    """
+    Visualize scalar data on a triangular mesh using Nilearn with explicit color normalization.
+
+    Args:
+        coords : (N, 3) ndarray
+            3D coordinates of each vertex.
+        faces : (M, 3) ndarray
+            Triangles as vertex indices.
+        scalar_values : (N,) ndarray
+            The scalar (e.g., gradient magnitude) for each vertex.
+        title : str or None
+            Title of the plot.
+        cmap : str
+            Name of the color map (e.g. "viridis", "coolwarm", etc.).
+        threshold : float
+            Threshold value for the scalar data.
+    Returns:
+        view : Nilearn plot
+    """
+    # Create a surface mesh
+    surf_mesh = (coords, faces)
+
+    # Define explicit min and max values
+    vmin, vmax = np.min(scalar_values), np.max(scalar_values)  
+
+    # Normalize scalar values to fit within [vmin, vmax]
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    normalized_values = norm(scalar_values)  # Scale data
+
+    # Ensure thresholding is correctly handled
+    high_threshold = np.percentile(scalar_values, threshold)
+
+    # Visualize the scalar data on the surface
+    view = view_surf(
+        surf_mesh=surf_mesh,
+        surf_map=normalized_values,  # Use normalized values
+        cmap=cmap,
+        bg_map=None,
+        threshold=high_threshold,
+        symmetric_cmap=False, 
+        vmax=1,  # Since we normalized, set range to [0,1]
+        vmin=0,  # Normalize ensures it spans full colormap
+        title=title,
+    )
+
+    return view
+
+
 def combine_surfaces(coords1, faces1, scalar1, coords2, faces2, scalar2):
     """
     Combine two surfaces (e.g., left and right hemispheres) into one mesh.
@@ -107,39 +165,4 @@ def visualize_brain_pyvista(coords, faces, values, cmap="viridis"):
 
     # Display the interactive plot
     plotter.show()
-
-
-# Visualization to plot two different surfaces
-import matplotlib.pyplot as plt
-from nilearn import plotting
-
-def visualize_surfaces_side_by_side(
-    coords1, faces1, values1,
-    coords2, faces2, values2
-):
-    fig, axes = plt.subplots(nrows=1, ncols=2, subplot_kw={"projection": "3d"}, figsize=(10, 5))
-    
-    # First surface
-    plotting.plot_surf(
-        surf_mesh=(coords1, faces1),
-        surf_map=values1,
-        cmap='viridis',
-        colorbar=True,
-        axes=axes[0],
-        title="Surface 1"
-    )
-    
-    # Second surface
-    plotting.plot_surf(
-        surf_mesh=(coords2, faces2),
-        surf_map=values2,
-        cmap='viridis',
-        colorbar=True,
-        axes=axes[1],
-        title="Surface 2"
-    )
-    
-    plt.tight_layout()
-    plt.show()
-
 

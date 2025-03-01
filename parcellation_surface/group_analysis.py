@@ -193,13 +193,13 @@ def parcel_correlation(group_parcel,
     Group the fMRI data into parcels and compute the correlation between parcels.
         group_parcel (np.ndarray): An array where each element indicates the parcel assignment 
                                    of the corresponding vertex in the surface fMRI data.
-        surf_fmri (np.ndarray): A 2D array where each row represents a vertex and each column 
+        surf_fmri (np.ndarray): Single Subject fmri data, A 2D array where each row represents a vertex and each column 
                                 represents a time point of the fMRI data.
     Returns:
         np.ndarray: A 2D array representing the correlation matrix between the parcels.
     """
     # Get unique parcel indices greater than 0 (non-zero parcels)
-    parcel_idx = np.unique(group_parcel[group_parcel > 0])
+    parcel_idx = np.unique(group_parcel[group_parcel >= 0])
     n_parcels = len(parcel_idx)
     
     # Initialize an array to store mean fMRI data for each parcel
