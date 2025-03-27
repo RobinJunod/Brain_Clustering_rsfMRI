@@ -23,78 +23,61 @@ import numpy as np
 import matplotlib.pyplot as plt
 import nibabel as nib
 
-from visualization import visualize_brain_surface
-from smoothing import smooth_surface_graph
-from watershed import watershed_by_flooding
-from gradient import build_mesh_graph
-from gradient import load_gradient_mgh
-from watershed import load_labels_mgh
+from .visualization import visualize_brain_surface
+from .smoothing import smooth_surface_graph
+from .watershed import watershed_by_flooding
+from .gradient import build_mesh_graph
+from .gradient import load_gradient_mgh
+from .watershed import load_labels_mgh
 
-
-
-def extract_timestamp(fpath):
-    fname = os.path.basename(fpath)  # e.g. "left_labels_20240101123045.mgh"
-    # Split by "_" -> ["left", "labels", "20240101123045.mgh"]
-    # The last part has "20240101123045.mgh"
-    time_str = fname.split('_')[-1].replace(".mgh", "")
-    return time_str
-
-def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
-                           dataset_dir = r"D:\Data_Conn_Preproc\PPSFACE_N18"
-                           ):
-    list_parc = []
-    list_grad = []
-    for s in range(1,11): # (modify as needed)
-        # print('grad map and parcellation map of subject : ', s)
-        subject = f"{s:02d}"
-        # Path to the subject directory (modify as needed)
-        subj_dir = dataset_dir + r"\sub-" + subject
-        grad_dir = subj_dir + r"\outputs_surface\gradient_map"
-        parcel_dir = subj_dir + r"\outputs_surface\labels"
-        pattern_grad = os.path.join(grad_dir, f"*_{hemisphere}_*.mgh")
-        pattern_parc = os.path.join(parcel_dir, f"*_{hemisphere}_*.mgh")
-
-        files_grad = glob.glob(pattern_grad)
-        files_parc = glob.glob(pattern_parc)
-
-        # Select latest files 
-        files_grad_sorted = sorted(files_grad, key=lambda x: extract_timestamp(x))
-        files_parc_sorted = sorted(files_parc, key=lambda x: extract_timestamp(x))
-
-        latest_grad_file = files_grad_sorted[-1]
-        latest_parc_file = files_parc_sorted[-1]
-        
-        # Add the data to the list 
-        list_grad.append(load_gradient_mgh(latest_grad_file))
-        
-        # extract the boundary of the parcellation map
-        parc_boundary = load_labels_mgh(latest_parc_file)
-        list_parc.append(parc_boundary)
+# Our Null Model
+from collections import deque
+def create_random_parcels(graph, n_clusters):
+    """
+    Randomly cluster a connected graph using BFS with 140 seeds.
     
-    gradient_list = np.stack(list_grad, axis=0)
-    parcel_list = np.stack(list_parc, axis=0)
-    return gradient_list, parcel_list
+    Args:
+        graph: dict[int, list[int]]
+            Adjacency list representation of the graph.
+            Keys are vertex IDs, values are lists of neighbors.
+        n_clusters: int
+            Number of clusters to grow.
+    
+    Returns:
+        labels: np.ndarray
+            Array of shape (n_vertices,) with cluster labels:
+            -1 = unassigned
+            -2 = boundary
+            >= 0 = cluster ID
+    """
+    n_vertices = len(graph)
+    labels = np.full(n_vertices, -1, dtype=int)  # Initialize all vertices as unassigned
+    # Step 1: Randomly select seeds
+    seeds = np.random.choice(n_vertices, size=n_clusters, replace=False)
+    for cluster_id, seed in enumerate(seeds):
+        labels[seed] = cluster_id  # Assign each seed a unique cluster ID
 
+    # Step 2: Initialize queues for BFS
+    queues = [deque([seed]) for seed in seeds]
 
-def extract_fmri_timeseries(hemisphere: Literal["lh", "rh"],
-                            run = "1"):
-    # Load all of the surf fmri data
-    surf_fmri_list = []
-    dataset_dir = r"D:\Data_Conn_Preproc\PPSFACE_N18"
-    for i in range(1,11):
-        subject = f"{i:02d}"
-        subj_dir = dataset_dir + r"\sub-" + subject
-        fmri_path = subj_dir + f"\\func\surf_conn_sub{subject}_run{run}_{hemisphere}.func.fsaverage6.mgh"
-        surf_fmri_img = nib.load(fmri_path)
-        surf_fmri = surf_fmri_img.get_fdata()
-        surf_fmri = np.squeeze(surf_fmri) # just rearrange the MGH data
-        # Normilize the data
-        surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
-        # Replace nan values with 0
-        surf_fmri = np.nan_to_num(surf_fmri)
-        surf_fmri_list.append(surf_fmri)
-    return surf_fmri_list
+    # Step 3: BFS Growth
+    while any(queues):  # While any cluster is still growing
+        for cluster_id, queue in enumerate(queues):
+            if not queue:
+                continue  # Skip if this cluster's queue is empty
+            current_vertex = queue.popleft()  # Get the next vertex to process
+            
+            # Iterate over neighbors of the current vertex
+            for neighbor in graph[current_vertex]:
+                if labels[neighbor] == -1:  # If the neighbor is unassigned
+                    labels[neighbor] = cluster_id  # Assign the current cluster ID
+                    queue.append(neighbor)  # Add the neighbor to the queue
+                elif labels[neighbor] >= 0 and labels[neighbor] != cluster_id:
+                    # Conflict: Neighbor belongs to a different cluster
+                    labels[current_vertex] = -2  # Mark the current vertex as a boundary
+                    labels[neighbor] = -2        # Mark the neighbor as a boundary
 
+    return labels
 
 def dice_coefficient(y_true, y_pred):
     """
@@ -185,8 +168,6 @@ def homogeneity_timecourse(group_parcel,
     return homogeneity_mean
 
 
-
-
 def parcel_correlation(group_parcel, 
                        surf_fmri):
     """
@@ -240,113 +221,50 @@ def hierarchical_corr_mtrx(corr_matrix, show=True):
 
 
 
-from collections import deque
-def create_random_parcels(graph, n_clusters):
-    """
-    Randomly cluster a connected graph using BFS with 140 seeds.
-    
-    Args:
-        graph: dict[int, list[int]]
-            Adjacency list representation of the graph.
-            Keys are vertex IDs, values are lists of neighbors.
-        n_clusters: int
-            Number of clusters to grow.
-    
-    Returns:
-        labels: np.ndarray
-            Array of shape (n_vertices,) with cluster labels:
-            -1 = unassigned
-            -2 = boundary
-            >= 0 = cluster ID
-    """
-    n_vertices = len(graph)
-    labels = np.full(n_vertices, -1, dtype=int)  # Initialize all vertices as unassigned
-    # Step 1: Randomly select seeds
-    seeds = np.random.choice(n_vertices, size=n_clusters, replace=False)
-    for cluster_id, seed in enumerate(seeds):
-        labels[seed] = cluster_id  # Assign each seed a unique cluster ID
+def extracrt_gradparc_list(hemisphere: Literal["lh", "rh"],
+                           dataset_dir = r"D:\Data_Conn_Preproc\PPSFACE_N18"
+                           ):
+    def extract_timestamp(fpath):
+        fname = os.path.basename(fpath)  # e.g. "left_labels_20240101123045.mgh"
+        # Split by "_" -> ["left", "labels", "20240101123045.mgh"]
+        # The last part has "20240101123045.mgh"
+        time_str = fname.split('_')[-1].replace(".mgh", "")
+        return time_str
+    # Use to extract single subject gradient and parcellation maps
+    list_parc = []
+    list_grad = []
+    for s in range(1,11): # (modify as needed)
+        # print('grad map and parcellation map of subject : ', s)
+        subject = f"{s:02d}"
+        # Path to the subject directory (modify as needed)
+        subj_dir = dataset_dir + r"\sub-" + subject
+        grad_dir = subj_dir + r"\outputs_surface\gradient_map"
+        parcel_dir = subj_dir + r"\outputs_surface\labels"
+        pattern_grad = os.path.join(grad_dir, f"*_{hemisphere}_*.mgh")
+        pattern_parc = os.path.join(parcel_dir, f"*_{hemisphere}_*.mgh")
 
-    # Step 2: Initialize queues for BFS
-    queues = [deque([seed]) for seed in seeds]
+        files_grad = glob.glob(pattern_grad)
+        files_parc = glob.glob(pattern_parc)
 
-    # Step 3: BFS Growth
-    while any(queues):  # While any cluster is still growing
-        for cluster_id, queue in enumerate(queues):
-            if not queue:
-                continue  # Skip if this cluster's queue is empty
-            current_vertex = queue.popleft()  # Get the next vertex to process
-            
-            # Iterate over neighbors of the current vertex
-            for neighbor in graph[current_vertex]:
-                if labels[neighbor] == -1:  # If the neighbor is unassigned
-                    labels[neighbor] = cluster_id  # Assign the current cluster ID
-                    queue.append(neighbor)  # Add the neighbor to the queue
-                elif labels[neighbor] >= 0 and labels[neighbor] != cluster_id:
-                    # Conflict: Neighbor belongs to a different cluster
-                    labels[current_vertex] = -2  # Mark the current vertex as a boundary
-                    labels[neighbor] = -2        # Mark the neighbor as a boundary
+        # Select latest files 
+        files_grad_sorted = sorted(files_grad, key=lambda x: extract_timestamp(x))
+        files_parc_sorted = sorted(files_parc, key=lambda x: extract_timestamp(x))
 
-    return labels
-
-
-
-
-#%% TODO : try to perform watershed on gradient and on parcels
-if __name__ == "__main__":
-    import nibabel as nib
-    # surface_path = r"D:\DATA_min_preproc\dataset_study1\fsaverage6\surf\lh.white"
-    surface_path = r"D:\DATA_min_preproc\dataset_PPSFace1\fsaverage6\surf\lh.inflated"
-    coords, faces = nib.freesurfer.read_geometry(surface_path)
-    graph = build_mesh_graph(faces)
-    
-    # Load all of the surf fmri data
-    surf_fmri_list = extract_fmri_timeseries(hemisphere='lh')
-    # Load the gradient and parcellation maps
-    gradient_list, parcel_list = extracrt_gradparc_list(hemisphere='lh')
-
-    visualize_brain_surface(coords, faces, gradient_list[0], title="Group Gradient")
-    
-    # Compute group parcellation
-    group_gradient = gradient_list.mean(axis=0)
-    group_gradient_smoothed = smooth_surface_graph(graph, group_gradient,  iterations=10)
-    visualize_brain_surface(coords, faces, group_gradient_smoothed, title="Group Gradient")
-    
-    # Labels the group gradient map
-    group_parc = watershed_by_flooding(graph, group_gradient_smoothed)
-    group_boundary = (group_parc<0)*1
-    visualize_brain_surface(coords, faces, group_boundary, title="Group Bounardy")
-    
-    # Compute dice coefficient with the boundaries
-    dice_coef_list = []
-    for i in range(18):
-        subj_boundary = 1*(parcel_list[i]<0)
-        dice = dice_coefficient(group_boundary, subj_boundary)
-        dice_coef_list.append(dice)
-        print(f"Subject {i+1} Dice coefficient: {dice}")
+        latest_grad_file = files_grad_sorted[-1]
+        latest_parc_file = files_parc_sorted[-1]
         
-    # Compare group dice coefficient
-    groupA_mean = gradient_list[:8,:].mean(axis=0)
-    groupA_mean = smooth_surface_graph(graph, groupA_mean,  iterations=10)
-    groupA_parc = watershed_by_flooding(graph, groupA_mean)
-    groupA_boundary = (groupA_parc<0)*1
-    groupB_mean = gradient_list[8:,:].mean(axis=0)
-    groupB_mean = smooth_surface_graph(graph, groupB_mean,  iterations=10)
-    groupB_parc = watershed_by_flooding(graph, groupB_mean)
-    groupB_boundary = (groupB_parc<0)*1
+        # Add the data to the list 
+        list_grad.append(load_gradient_mgh(latest_grad_file))
+        
+        # extract the boundary of the parcellation map
+        parc_boundary = load_labels_mgh(latest_parc_file)
+        list_parc.append(parc_boundary)
     
-    
-
-    #%% Compute the corr between parcels
-    sub1_parccorr = parcel_correlation(group_parc, surf_fmri_list[9])
-    reordered_corr_matrix = hierarchical_corr_mtrx(sub1_parccorr, show=True)
-
-    #%% Select a cluster of interest
-    # new_to_original = {new_idx: original_idx for new_idx, original_idx in enumerate(cluster_idxs)}
-    # # Custom the range of interest
-    # new_to_original_range = [new_to_original[new_idx] for new_idx in range(70, 88 + 1) if new_idx in new_to_original]
-    # parc_network = np.isin(group_parc, new_to_original_range)*1 # 1 if in the cluster, 0 otherwise
-    # visualize_brain_surface(coords, faces, parc_network, title="Parcel Network")
+    gradient_list = np.stack(list_grad, axis=0)
+    parcel_list = np.stack(list_parc, axis=0)
+    return gradient_list, parcel_list
 
 
+if __name__ == "__main__":
+    pass
 
-# %%

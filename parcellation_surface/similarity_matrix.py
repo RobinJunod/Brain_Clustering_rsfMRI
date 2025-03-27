@@ -6,26 +6,26 @@ import numpy as np
 import nibabel as nib
 from sklearn.decomposition import PCA
 
-from gradient import build_mesh_graph
+from .gradient import build_mesh_graph
 
 def compute_similarity_matrix_pca(vol_fmri_n,
-                                 surf_fmri_n,
-                                 n_components=17):
+                                  surf_fmri_n,
+                                  n_components=17):
     """Compute the similarity matrix with a PCA dim reduction
     Args:
-        vol_fmri_n (_type_): _description_
-        surf_fmri_n (_type_): _description_
-        n_components (int, optional): _description_. Defaults to 17.
+        surf_fmri_n (2D np.ndarray): Normalized surface fMRI data. shape (n_vertices, n_timepoints)
+        vol_fmri_n (2D np.ndarray): Normalized volume fMRI data. shape (n_voxels, n_timepoints)
+        n_components (int, optional): Number of Most important component to keep. Defaults to 17.
     """
     # 4. Run PCA on the time series data
     pca = PCA(n_components=n_components)
-    temporal_modes = pca.fit_transform(vol_fmri_n.T).astype(np.float32) # shape = (n_timepoints, n_components)
+    temporal_modes = pca.fit_transform(vol_fmri_n.T).astype(np.float32) # shape must be : (n_timepoints, n_components)
     # print the percent of explained variacne 
-    print('explained variance:', pca.explained_variance_ratio_)
-    print('explained variance sum:', pca.explained_variance_ratio_.sum())
+    # print('explained variance:', pca.explained_variance_ratio_)
+    # print('explained variance sum:', pca.explained_variance_ratio_.sum())
     
     # Correlation formula for normalized data
-    corr_matrix = (surf_fmri_n @ temporal_modes)  / (surf_fmri_n.shape[1] - 1) # shape = (n_vertices, n_components)
+    corr_matrix = (surf_fmri_n @ temporal_modes)  / (surf_fmri_n.shape[1] - 1) # shape will be (n_vertices, n_components)
     # Similarty matrix
     sim_matrix = np.corrcoef(corr_matrix, dtype=np.float32) # shape = (n_vertices, n_vertices)
     sim_matrix = np.nan_to_num(sim_matrix) # remove nans if any
@@ -34,13 +34,10 @@ def compute_similarity_matrix_pca(vol_fmri_n,
 
 from sklearn.decomposition import FastICA
 def compute_similarity_matrix_ica(surf_fmri_n,
-                                 vol_fmri_n,
-                                 mask_n,
-                                 n_modes=7):
-    X = vol_fmri_n[mask_n].T
-    n_components = 7 # This is where you set the number of ICA sources
+                                  vol_fmri_n,
+                                  n_components=7):
     ica = FastICA(n_components=n_components, random_state=0)
-    temporal_modes = ica.fit_transform(X)   # S has shape (380, n_components)
+    temporal_modes = ica.fit_transform(vol_fmri_n.T).astype(np.float32)   # S has shape (380, n_components)
     
     # compute the correlation matrix (for normalized data, the correlation matrix is the same as the covariance matrix)
     corr_matrix = (surf_fmri_n @ temporal_modes)  / (surf_fmri_n.shape[1] - 1)
@@ -118,4 +115,7 @@ if __name__ == "__main__":
     
     sim_matrix_sum = compute_similarity_matrix_pca(vol_fmri_n,
                                                    surf_fmri_n)
-# %%
+
+
+if __name__ == "__main__":
+    pass

@@ -108,44 +108,7 @@ def full_pipeline():
 #%%
 
 if __name__ == "__main__":
-    print("Load and Test the results")
-    
-    # Path for the dataset 2
-    # path_midthickness = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.32k.surf.gii"
-    # path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study2\sub-04\sub04_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
-    # path_gradient_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\gradient_map\lh_gradient_map_20250106104701.npy"
-    # path_parcels_values = "D:\DATA_min_preproc\dataset_study2\sub-04\outputs_surface\labels\lh_labels_20250106104701.npy"
-    # # Path for the dataset 1
-    # path_midthickness = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.32k.surf.gii"
-    # path_midthickness_inflated = "D:\DATA_min_preproc\dataset_study1\sub-03\sub03_freesurfer\surf\lh.midthickness.inflated.32k.surf.gii"
-    # path_gradient_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\gradient_map\lh_gradient_map_20250106155120.npy"
-    # path_parcels_values = "D:\DATA_min_preproc\dataset_study1\sub-03\outputs_surface\labels\lh_labels_20250106155121.npy"
-    
-    # surface_mesh_path = r"D:\Data_Conn_Preproc\PPSFACE_N18\fsaverage6\surf\lh.inflated"
-    # gradient_mgh_path = r"D:\Data_Conn_Preproc\PPSFACE_N18\sub-01\outputs_surface\gradient_map\grad_conn_fsavg6_lh_20250130105744.mgh"
-    # labels_mgh_path = r"D:\Data_Conn_Preproc\PPSFACE_N18\sub-01\outputs_surface\labels\labels_conn_fsavg6_lh_20250130105745.mgh"
-    # coords, faces = nib.freesurfer.read_geometry(surface_path)
-    # gradient_values = load_gradient_mgh(path_gradient_values)
-    # parcels_values = load_labels_mgh(path_parcels_values)
-    # # visualize_brain_surface(coords, faces, gradient_values, title='Gradient Map')
-    # visualize_brain_surface(coords, faces, parcels_values, title='Parcellation Map')
-    
-    path_inflated = r"D:\Data_Conn_Preproc\PPSFACE_N18\fsaverage6\surf\lh.inflated"
-    coords_, faces_ = nib.freesurfer.read_geometry(path_inflated)
-    gradient_path = r"D:\Data_Conn_Preproc\PPSFACE_N18\sub-10\outputs_surface\gradient_maprun2\grad_conn_fsavg6_lh_20250201103221.mgh"
-    gradient = load_gradient_mgh(gradient_path)
-    visualize_brain_surface(coords_, faces_, gradient)
-    
-    
-    parser = argparse.ArgumentParser(description="Run parcellation pipeline.")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Path to YAML config file.")
-    parser.add_argument("--subjects", nargs="+", required=True, help="List of subjects to process.")
-    
-    args = parser.parse_args()
-    config = load_config(args.config)
-    for subject in args.subjects:
-        single_subj_parcellation_fsaverage(subject, config)
-        
+    pass
     # TODO : create a config file, each subject must have 3 folders: func, anat, sub{01}freesurfer
     # python run_pipeline.py --config config.yaml --subjects 01 02 03 04 05
     

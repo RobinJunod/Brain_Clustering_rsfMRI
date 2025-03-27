@@ -212,3 +212,6 @@ def load_gradient_mgh(mgh_file_path):
     # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
     data = mgh_image.get_fdata().squeeze()
     return data
+
+if __name__ == "__main__":
+    pass

@@ -11,8 +11,9 @@ import nibabel as nib
 
 def find_local_minima(values, graph):
     """
-    values: (N,) array-like of scalar values (gradient magnitude at each vertex).
-    graph: networkx.Graph where each node corresponds to an index in [0..N-1].
+    Args:
+        values: (N,) array-like of scalar values (gradient magnitude at each vertex).
+        graph: networkx.Graph where each node corresponds to an index in [0..N-1].
     
     Returns:
         minima: list of vertex indices that are local minima
@@ -31,8 +32,6 @@ def find_local_minima(values, graph):
         if is_min:
             minima.append(node)
     return minima
-
-
 
 def watershed_by_flooding(graph, values):
     """
@@ -102,39 +101,8 @@ def watershed_by_flooding(graph, values):
     return labels
 
 
-def save_labels_mgh(labels,
-                    output_dir,
-                    hemisphere: Literal["lh", "rh"],
-                    name = "labels"):
-    """Save the gradient map into a .mgh file
-    Args:
-        labels (np.array): the labels in order to the coords from the triangles surface
-        output_dir (string): dir for grad output
-        hemisphere (strinf): the hemisphere of the surface data
-    """
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
-    # Reshape the data to match the FreeSurfer .mgh format expectations
-    labels_reshaped = labels.reshape((len(labels), 1, 1)).astype(np.float32)
-    # 3. Create an identity affine (often used for surface data).
-    affine = np.eye(4)
-    # 4. Construct the MGH image.
-    mgh_img = nib.freesurfer.mghformat.MGHImage(labels_reshaped, affine)
-    # 5. Save the MGH file to disk.
-    path = output_dir + f"\{name}_{hemisphere}_{time}.mgh"
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    nib.save(mgh_img, path)
 
-def load_labels_mgh(mgh_file_path):
-    # Load the MGH image
-    mgh_image = nib.load(mgh_file_path)
-    # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
-    data = mgh_image.get_fdata().squeeze()
-    return data
-
-
-
-
-##################### Other method for edges detection #####################
+##################### Alternative method for edges detection #####################
 # Non-maxima suppression
 def non_maxima_suppression(graph,
                            gradient_map,
@@ -172,3 +140,38 @@ def non_maxima_suppression(graph,
         if is_max and count >= min_neighbors and gradient_map[vertex] > min_grad_value:
             edge_map[vertex] = True
     return edge_map
+
+
+
+
+def save_labels_mgh(labels,
+                    output_dir,
+                    hemisphere: Literal["lh", "rh"],
+                    name = "labels"):
+    """Save the gradient map into a .mgh file
+    Args:
+        labels (np.array): the labels in order to the coords from the triangles surface
+        output_dir (string): dir for grad output
+        hemisphere (strinf): the hemisphere of the surface data
+    """
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    # Reshape the data to match the FreeSurfer .mgh format expectations
+    labels_reshaped = labels.reshape((len(labels), 1, 1)).astype(np.float32)
+    # 3. Create an identity affine (often used for surface data).
+    affine = np.eye(4)
+    # 4. Construct the MGH image.
+    mgh_img = nib.freesurfer.mghformat.MGHImage(labels_reshaped, affine)
+    # 5. Save the MGH file to disk.
+    path = output_dir + f"\{name}_{hemisphere}_{time}.mgh"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    nib.save(mgh_img, path)
+
+def load_labels_mgh(mgh_file_path):
+    # Load the MGH image
+    mgh_image = nib.load(mgh_file_path)
+    # Extract data as float32 (optional) and squeeze to remove single-dimensional axes
+    data = mgh_image.get_fdata().squeeze()
+    return data
+
+
+

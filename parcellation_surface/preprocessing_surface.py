@@ -61,56 +61,36 @@ def load_data_normalized(surf_fmri_path,
     # Remove nans from the data
     surf_fmri_n = np.nan_to_num(surf_fmri_n).astype(np.float32)
     vol_fmri_n = np.nan_to_num(vol_fmri_n).astype(np.float32)
-    return surf_fmri_n, vol_fmri_n
+    return surf_fmri_n, vol_fmri_n # Warning : the vol outputs are not in 3D anymore
 
 
-
-def load_volume_data(path_func, path_brain_mask):
-    """
-    Load and preprocess fMRI volume data and brain mask.
-    
-    Args:
-        path_func (str): Path to the fMRI volume data file.
-        path_brain_mask (str): Path to the brain mask file.
-
-    Returns:
-        tuple: A tuple containing:
-            - vol_fmri_masked (numpy.ndarray): Masked fMRI volume data.
-            - resampled_mask (numpy.ndarray): Resampled brain mask.
-            - affine_vol_fmri (numpy.ndarray): Affine transformation matrix of the fMRI volume data.
-    """
-    # Load volumetric data
-    fmri_img = nib.load(path_func)
-    affine_vol_fmri = fmri_img.affine
-    vol_fmri = fmri_img.get_fdata()
-
-    # Load mask data (and resample to target shape)
-    brain_mask_img = nib.load(path_brain_mask)
-    resampled_mask_img = resample_img(
-        brain_mask_img,
-        target_affine=affine_vol_fmri,
-        target_shape=vol_fmri.shape[:-1],
-        interpolation='nearest',
-        force_resample=True
-    )
-    # Convert to bool
-    resampled_mask = resampled_mask_img.get_fdata()
-    resampled_mask = (resampled_mask != 0) # Convert to bool
-    resampled_mask_img = nib.Nifti1Image(resampled_mask, 
-                                        affine=resampled_mask_img.affine, 
-                                        header=resampled_mask_img.header)
-
-    # Save the resampled mask
-    resampled_path = os.path.join(os.path.dirname(path_brain_mask), "resampled_brain_mask.nii.gz")
-    resampled_mask_img.to_filename(resampled_path)
-
-    # Normalize the time series of the volume data inside the mask
-    vol_fmri_masked_ = vol_fmri[resampled_mask]
-    vol_fmri_masked = np.zeros_like(vol_fmri)
-    vol_fmri_masked[resampled_mask] = vol_fmri_masked_
-    
-    return vol_fmri_masked, resampled_mask, affine_vol_fmri
-
+# This is a custom function for my data organisation
+from typing import Literal
+def extract_fmri_timeseries(dataset = Literal["PPSFACE_N18", "PPSFACE_N20"],
+                            hemisphere = Literal["lh", "rh"],
+                            run = Literal["1","2"]):
+    # Load all of the surf fmri data
+    surf_fmri_list = []
+    dataset_dir = f"D:\Data_Conn_Preproc\\{dataset}"
+    if dataset == "PPSFACE_N18":
+        n = 19
+    else:
+        n = 21
+    for i in range(1,n):
+        if i == 5 and dataset=="PPSFACE_N20": # Subject 5 is missing
+            continue
+        subject = f"{i:02d}"
+        subj_dir = dataset_dir + r"\sub-" + subject
+        fmri_path = subj_dir + f"\\func\surf_conn_sub{subject}_run{run}_{hemisphere}.func.fsaverage6.mgh"
+        surf_fmri_img = nib.load(fmri_path)
+        surf_fmri = surf_fmri_img.get_fdata()
+        surf_fmri = np.squeeze(surf_fmri) # just rearrange the MGH data
+        # Normilize the data
+        surf_fmri = (surf_fmri - np.mean(surf_fmri, axis=1, keepdims=True)) / np.std(surf_fmri, axis=1, keepdims=True)
+        # Replace nan values with 0
+        surf_fmri = np.nan_to_num(surf_fmri)
+        surf_fmri_list.append(surf_fmri)
+    return surf_fmri_list
 
 def fmri_vol2surf(vol_fmri_img, path_midthickness_l, path_midthickness_r):
     """
@@ -179,6 +159,7 @@ def fmri_to_spatial_modes(vol_fmri,
     
 
 def congrads_dim_reduction(vol_fmri, resampled_mask, low_variance_threshold=0.5):
+    # A copy from congrads for comparison
     def pca(X):
         from scipy.linalg import svd
 
@@ -208,30 +189,5 @@ def congrads_dim_reduction(vol_fmri, resampled_mask, low_variance_threshold=0.5)
     
 #%% Run the code
 if __name__ == "__main__":
-    # Paths
-    SUBJECT = r"01"
-
-    SUBJ_DIR = r"D:\DATA_min_preproc\dataset_study2\sub-" + SUBJECT
-    path_func = SUBJ_DIR + r"\func\rwsraOB_TD_FBI_S" + SUBJECT + r"_007_Rest.nii"
-
-    path_midthickness_r = SUBJ_DIR + r"\func\rh.midthickness.32k.surf.gii"
-    path_midthickness_l = SUBJ_DIR + r"\func\lh.midthickness.32k.surf.gii"
-
-    path_white_r = SUBJ_DIR + r"\func\rh.white.32k.surf.gii"
-    path_white_l = SUBJ_DIR + r"\func\lh.white.32k.surf.gii"
-
-    path_pial_r = SUBJ_DIR + r"\func\rh.pial.32k.surf.gii"
-    path_pial_l = SUBJ_DIR + r"\func\lh.pial.32k.surf.gii"
-
-    path_brain_mask = SUBJ_DIR + r"\sub" + SUBJECT + r"_freesurfer\mri\brainmask.mgz"
-
-    path_midthickness_l_inflated = SUBJ_DIR + r"\func\lh.midthickness.inflated.32k.surf.gii"
-
-    vol_fmri, resampled_mask, affine = load_volume_data(path_func, path_brain_mask)
-    surf_fmri_l, surf_fmri_r = fmri_vol2surf(nib.load(path_func), path_midthickness_l, path_midthickness_r)
-    
-    modes = fmri_to_spatial_modes(vol_fmri, 
-                          resampled_mask,
-                          n_modes=380,
-                          low_variance_threshold = 0.5)
+    pass
 # %%

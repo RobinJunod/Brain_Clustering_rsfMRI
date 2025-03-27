@@ -111,7 +111,7 @@ mri_surf2surf \
 
 ### Parcellation run example
 
-
+```
 └── subjects_dir/
     ├── sub-01/
     │   ├── anat/
@@ -125,7 +125,8 @@ mri_surf2surf \
     ├── sub-02/
     ├── sub-03/
     └── sub-03/
-
+```bash
+# in dev
 ```bash
   python run_pipeline.py --config config.yaml --subjects 01 02 03 04 05
 ```
