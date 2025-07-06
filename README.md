@@ -34,8 +34,8 @@ git clone https://github.com/RobinJunod/Brain_Clustering_rsfMRI.git
 cd Brain_Clustering_rsfMRI
 
 # 2 ▸ create identical environment
-conda env create -f environment.yml
-conda activate rsfmri_parc
+pip install -r requirements.txt
+./venv/Script/activate
 
 # 3 ▸ put your data in BIDS format
 └── sub-01/
