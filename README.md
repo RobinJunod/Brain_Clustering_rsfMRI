@@ -1,5 +1,5 @@
 # 🧠 RS-fMRI Parcellation Toolkit  
-*Single-Subject Brain Clustering — from raw scans to high-resolution surface & volume atlases*
+*Subject and Group Level Brain Clustering — from raw scans fmri to high-resolution surface & volume atlases*
 
 > **Master Thesis · CHUV / EPFL ― “MYSPACE” project**  
 > **Author :** Robin Junod  ·  **Supervisors :** Dr. Michel Akselrod 
