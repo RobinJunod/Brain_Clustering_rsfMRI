@@ -1,39 +1,61 @@
-# CHUV, MYSPACE - RSFC Parcellation with rs-fMRI data.
-KEYWORDS : fmri analysis, single subject, parcellation, resting-state
+# 🧠 RS-fMRI Parcellation Toolkit  
+*Single-Subject Brain Clustering — from raw scans to high-resolution surface & volume atlases*
 
-## Intro
+> **Master Thesis · CHUV / EPFL ― “MYSPACE” project**  
+> **Author :** Robin Junod  ·  **Supervisors :** Dr. Michel Akselrod 
 
-This project dives into the parcellation of the brain using resting state functional connectivity (RSFC). It is based on multiples approches for parcellation and is made of full python pipelines. 
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/) 
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) 
+[![BIDS-Ready](https://img.shields.io/badge/BIDS-compatible-yes-orange)](https://bids.neuroimaging.io/)
 
-Before using these scripts some preprocessings steps must be done.
+---
+
+## ✨ What’s inside?
+
+| Stage | Purpose | Key scripts / notebooks |
+|-------|---------|-------------------------|
+| **0 · Pre-processing** | Convert raw DICOM → BIDS, motion-correct, normalise, smooth | *external*: **SPM**, **CONN**, **Freesurfer** |
+| **1 · Surface pipeline** | Subject-level parcellation on *fsaverage* cortical mesh | `process_reconall.sh`, `vol2fsaverage.sh`, `surface_parcellation.ipynb` |
+| **2 · Volume pipeline** | 3-D clustering straight in native/standard space | `parcellation_volume/volume_parcellation.py`, `volume_demo.ipynb` |
+| **3 · Visualisation & QC** | Quick-look plots, interactive QC HTML | `viz/plot_parcels.py`, `qc_report.ipynb` |
+
+👉 **Result:** a personalised atlas of cortical (surface) and sub-cortical (volume) parcels ready for connectivity or graph-theory analysis.
+
+---
+## Preprocessing
+
+1 - USE SPM for the minimal preprocessing steps (mo corr, time slicing, etc.)
+2 - USE CONN toolbox for noise Artefact reduction (recommended).
+
+## 🏁 Quick Start (5 steps)
+
+```bash
+# 1 ▸ clone
+git clone https://github.com/RobinJunod/Brain_Clustering_rsfMRI.git
+cd Brain_Clustering_rsfMRI
+
+# 2 ▸ create identical environment
+conda env create -f environment.yml
+conda activate rsfmri_parc
+
+# 3 ▸ put your data in BIDS format
+└── sub-01/
+    ├── anat/sub-01_T1w.nii.gz
+    └── func/sub-01_task-rest_bold.nii.gz
+
+# 4 ▸ run surface pipeline (example)
+bash scripts/process_reconall.sh sub-01
+bash scripts/vol2fsaverage.sh sub-01
+jupyter notebook surface_parcellation.ipynb     # tweak & run
+
+# 5 ▸ run volume pipeline
+python parcellation_volume/volume_parcellation.py \
+       --bold sub-01_task-rest_bold.nii.gz \
+       --brainmask sub-01_brainmask.nii.gz \
+       --roi sub-01_S1roi.nii.gz
+```
+
+## Detailed Results
+[Take a look at the PDF report](results/EPFL_Master_Thesis.pdf)
 
 
-### Preprocessing steps
-For the preprocessing steps you should use the following softwares:
-- Freesurfer (mendatory for the surface parcellation) 
-- SPM 
-- CONN (recommended)
-
-For a simplier usage, use the BIDS format : 'anat' 'func'
-
-
-
-
-## Surface based parcellation
-### Prerequest
-- Resting state fMRI : preprocessed (brain extraction, motion correction, coregistration, noramlization, smoothing) with SPM and CONN for instance
-- Freesurfer recon-all -> use the 'process_reconall.sh' script
-- Freesurfer surface projections -> use the 'vol2fsaverage.sh' script
-### Running the code
-- Easy path, Use and adapt the jupyter notebook.
-- Using cmd, (not finised yet)
-
-
-
-## Volume based parcellation
-For more details look at the *readme* inside of the folder 'parcellation_volume'.
-
-### Inputs
-- a fmri resting state data (4D): nii format
-- a mask that highlight the cerebral cortex (3D) : nii format
-- a ROI, in our case the S1 (3D): nii format
