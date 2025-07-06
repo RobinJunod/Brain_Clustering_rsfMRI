@@ -24,8 +24,8 @@
 ---
 ## Preprocessing
 
-1 - USE SPM for the minimal preprocessing steps (mo corr, time slicing, etc.)
-2 - USE CONN toolbox for noise Artefact reduction (recommended).
+- USE [SPM](https://www.fil.ion.ucl.ac.uk/spm/software/spm12/) for the minimal preprocessing steps (mo corr, time slicing, etc.)
+- USE [CONN](https://web.conn-toolbox.org/) toolbox for noise Artefact reduction (recommended).
 
 ## 🏁 Quick Start (5 steps)
 
