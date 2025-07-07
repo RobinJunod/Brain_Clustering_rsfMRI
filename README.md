@@ -64,5 +64,5 @@ python parcellation_volume/volume_parcellation.py \
 
 
 <p align="center">
-  <img src="results/stratres.png" alt="Homogeneity" width="65%">
+  <img src="results/statres.png" alt="Homogeneity" width="65%">
 </p>
