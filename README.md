@@ -58,3 +58,11 @@ python parcellation_volume/volume_parcellation.py \
 [Take a look at the PDF report](results/EPFL_Master_Thesis.pdf)
 
 
+<p align="center">
+  <img src="results/boundmap.png" alt="Bundary map" width="65%">
+</p>
+
+
+<p align="center">
+  <img src="results/stratres.png" alt="Homogeneity" width="65%">
+</p>
